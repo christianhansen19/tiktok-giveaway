@@ -133,7 +133,7 @@
       $('draw').disabled = d.active || !(d.totalEntries > 0);
       const cur = $('uid').value;
       $('uid').innerHTML = d.board.length
-        ? d.board.map((r) => `<option value="${r.userId}" data-n="${encodeURIComponent(r.nickname ?? '')}">${(r.nickname ?? r.userId).replace(/</g, '&lt;')} (${fmt.format(r.entries)} entries)</option>`).join('')
+        ? d.board.map((r) => `<option value="${r.userId}" data-n="${encodeURIComponent(r.nickname ?? '')}">${(r.nickname ?? r.userId).replace(/</g, '&lt;')} (${fmt.format(r.coins)} coins · ${fmt.format(r.entries)} entries)</option>`).join('')
         : '<option value="">No supporters yet</option>';
       if (cur) $('uid').value = cur;
     } catch { $('stats').textContent = 'Can’t reach the server.'; }

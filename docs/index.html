@@ -63,8 +63,10 @@
   .r3 .rank { background: var(--bronze); }
   .who { min-width: 0; }
   .name { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sent { font-size: .9rem; font-weight: 600; color: var(--muted); margin-top: 1px; }
+  .sent b { color: var(--ink); font-weight: 800; font-variant-numeric: tabular-nums; }
   .meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: .8rem; color: var(--muted); font-weight: 600; flex-wrap: wrap; }
-  .orns { display: inline-flex; gap: 6px; align-items: flex-end; }
+  .orns { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; align-items: flex-end; }
   .oc { display: inline-flex; align-items: flex-end; gap: 2px; font-weight: 800; color: var(--ink); }
   .bar { height: 8px; border: 1.5px solid var(--ink); border-radius: 999px; background: #fff; margin-top: 8px; overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--rose-deep); transition: width .6s ease; }
@@ -170,7 +172,7 @@
     const parts = TIERS.filter((t) => r.rewards[t.k] > 0);
     if (!parts.length) return { html: '', text: NEXT_HINT };
     return {
-      html: parts.map((t, idx) => `<span class="oc" title="${r.rewards[t.k]} ${t.n}">${orn(14 + TIERS.indexOf(t) * 4, true)}×${r.rewards[t.k]}</span>`).join(''),
+      html: parts.map((t) => `<span class="oc">${orn(14 + TIERS.indexOf(t) * 4, true)}${r.rewards[t.k]} ${t.n.toLowerCase()}</span>`).join(''),
       text: parts.map((t) => `${r.rewards[t.k]} ${t.n.toLowerCase()}`).join(' · '),
     };
   }
@@ -182,7 +184,8 @@
       <span class="rank" aria-label="Rank ${r.rank}">${r.rank}</span>
       <div class="who">
         <div class="name">${esc(r.nickname ?? 'Anonymous')}</div>
-        <div class="meta">${o.html ? `<span class="orns" aria-label="Ornaments earned">${o.html}</span>` : ''}<span>${o.html ? o.text : NEXT_HINT}</span></div>
+        <div class="sent"><b>${fmt.format(r.coins)}</b> coins sent</div>
+        <div class="meta">${o.html ? `<span class="orns" aria-label="Ornaments earned">${o.html}</span>` : `<span>${NEXT_HINT}</span>`}</div>
       </div>
       <div class="nums"><b>${fmt.format(r.entries)}</b><small>${r.entries === 1 ? 'entry' : 'entries'}</small><span class="odds">${odds}</span></div>
     </li>`;
