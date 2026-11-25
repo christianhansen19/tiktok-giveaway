@@ -26,6 +26,9 @@
   .result { margin-top: 14px; padding: 14px; background: var(--gold); border: 2px solid var(--ink); border-radius: 12px; font-weight: 700; word-break: break-word; }
   .result[hidden], .hidden { display: none; }
   .hint { margin: 2px 0 0; font-size: .9rem; color: var(--muted); }
+  .owed-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--rose-l); font-weight: 600; }
+  .owed-row:first-child { border-top: 0; }
+  .owed-row span:last-child { text-align: right; color: var(--muted); white-space: nowrap; }
   .toast { position: sticky; bottom: 12px; padding: 12px 16px; border: 2px solid var(--ink); border-radius: 12px; background: var(--paper); box-shadow: var(--sticker); font-weight: 700; }
   .toast[hidden] { display: none; }
   .toast.err { background: #ffe3e8; }
@@ -69,15 +72,21 @@
     </section>
 
     <section class="card">
-      <h2>Fix a coin total</h2>
-      <p class="hint">For a missed or double-counted gift. Use a minus sign to remove coins.</p>
+      <h2>Add or remove a gift</h2>
+      <p class="hint">For a gift the tracker missed or counted twice. Enter the value of <b>one gift</b>: it adds that gift's ornaments and entries. Use a minus sign to remove a gift that was counted by mistake.</p>
       <label for="uid">Viewer</label>
       <select id="uid"></select>
-      <label for="coins">Coins to add (or subtract)</label>
-      <input id="coins" type="number" inputmode="numeric" placeholder="e.g. 1000 or -500">
+      <label for="coins">Gift value in coins</label>
+      <input id="coins" type="number" inputmode="numeric" placeholder="e.g. 1500, or -1500 to remove">
       <label for="note">Note (optional)</label>
       <input id="note" type="text" placeholder="e.g. missed Galaxy">
       <div class="actions" style="grid-template-columns:1fr"><button class="btn alt" id="adjust">Apply</button></div>
+    </section>
+
+    <section class="card">
+      <h2>Ornaments to ship</h2>
+      <p class="hint" id="owedSummary">Nobody yet.</p>
+      <div id="owed"></div>
     </section>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -110,13 +119,21 @@
       const d = await (await fetch(API + '/leaderboard', { cache: 'no-store' })).json();
       $('state').textContent = d.active ? 'Running' : d.winner ? 'Winner picked' : 'Stopped';
       $('pill').className = 'pill ' + (d.active ? 'live' : d.winner ? 'done' : '');
-      $('coinsStat').textContent = `${fmt.format(d.totalCoins)} coins`;
-      $('stats').textContent = `${d.viewers} supporters` + (d.winner ? ` · Winner: ${d.winner.nickname}` : '');
+      $('coinsStat').textContent = `${fmt.format(d.totalCoins)} coins sent`;
+      $('stats').textContent = `${d.viewers} supporters · ${fmt.format(d.totalEntries ?? 0)} entries` + (d.winner ? ` · Winner: ${d.winner.nickname}` : '');
+      const t = d.ornamentTotals ?? { small: 0, medium: 0, large: 0 };
+      $('owedSummary').textContent = (d.owed?.length)
+        ? `${t.small} small · ${t.medium} medium · ${t.large} large across ${d.owed.length} ${d.owed.length === 1 ? 'person' : 'people'}`
+        : 'Nobody has earned an ornament yet.';
+      $('owed').innerHTML = (d.owed ?? []).map((o) => {
+        const bits = [o.small && `${o.small} small`, o.medium && `${o.medium} medium`, o.large && `${o.large} large`].filter(Boolean).join(', ');
+        return `<div class="owed-row"><span>${String(o.nickname ?? o.userId).replace(/</g, '&lt;')}</span><span>${bits}</span></div>`;
+      }).join('');
       $('start').disabled = false; $('stop').disabled = !d.active;
-      $('draw').disabled = d.active || d.viewers === 0;
+      $('draw').disabled = d.active || !(d.totalEntries > 0);
       const cur = $('uid').value;
       $('uid').innerHTML = d.board.length
-        ? d.board.map((r) => `<option value="${r.userId}" data-n="${encodeURIComponent(r.nickname ?? '')}">${(r.nickname ?? r.userId).replace(/</g, '&lt;')} (${fmt.format(r.coins)})</option>`).join('')
+        ? d.board.map((r) => `<option value="${r.userId}" data-n="${encodeURIComponent(r.nickname ?? '')}">${(r.nickname ?? r.userId).replace(/</g, '&lt;')} (${fmt.format(r.entries)} entries)</option>`).join('')
         : '<option value="">No supporters yet</option>';
       if (cur) $('uid').value = cur;
     } catch { $('stats').textContent = 'Can’t reach the server.'; }
@@ -162,7 +179,7 @@
     run(async () => {
       const r = await call('draw');
       $('drawOut').hidden = false;
-      $('drawOut').textContent = `🏆 ${r.winner.nickname} · ${fmt.format(r.winner.coins)} coins · ${(r.winner.odds * 100).toFixed(1)}% chance. Seed: ${r.seed}`;
+      $('drawOut').textContent = `🏆 ${r.winner.nickname} · ${fmt.format(r.winner.entries)} entries of ${fmt.format(r.total)} · ${(r.winner.odds * 100).toFixed(1)}% chance. Seed: ${r.seed}`;
     });
   };
   $('adjust').onclick = () => run(async () => {

@@ -1,16 +1,30 @@
 import { createHash } from 'node:crypto';
 
-// Reward thresholds. Rewards stack: 16,000 coins = small + medium + large.
+// RULES
+// 1. Ornaments are earned PER SINGLE GIFT (a streak counts as one gift at its total):
+//      gift >= 1,000 coins  -> 1 small
+//      gift >= 5,000 coins  -> + 1 medium
+//      gift >= 10,000 coins -> + 1 large
+//    A big gift stacks: one 16,000-coin gift = small + medium + large.
+//    Two separate 1,500-coin gifts = 2 small.
+// 2. Draw entries come from ornaments: 1 per small, 5 per medium, 10 per large.
+//    A viewer's chance to win = their entries / all eligible entries.
 export const TIERS = [
-  { key: 'small', min: 1000 },
-  { key: 'medium', min: 5000 },
-  { key: 'large', min: 10000 },
+  { key: 'small', min: 1000, entries: 1 },
+  { key: 'medium', min: 5000, entries: 5 },
+  { key: 'large', min: 10000, entries: 10 },
 ];
 
+// Ornaments earned by ONE gift worth `coins`.
 export function rewards(coins) {
   const out = { small: 0, medium: 0, large: 0 };
   for (const t of TIERS) if (coins >= t.min) out[t.key] = 1;
   return out;
+}
+
+// Draw entries represented by a set of ornament counts.
+export function entriesOf(orn) {
+  return TIERS.reduce((s, t) => s + Math.max(orn[t.key] ?? 0, 0) * t.entries, 0);
 }
 
 // Convert a raw TikTok gift message into a log event, or null if it should not count yet.
@@ -41,34 +55,42 @@ export function giftToEvent(data, now = Date.now()) {
   };
 }
 
-// Rebuild per-viewer totals from the event log (the log is the source of truth).
-// events: [{type:'gift', userId, nickname, coins} | {type:'adjust', userId, nickname, coins}]
+// Rebuild per-viewer results from the event log (the log is the source of truth).
+// events: gift {coins} = one gift; adjust {coins} = add one gift of that size (positive)
+// or remove a mistakenly counted gift of that size (negative).
 export function aggregate(events, excluded = new Set()) {
   const byUser = new Map();
   for (const e of events) {
     if (e.type !== 'gift' && e.type !== 'adjust') continue;
-    const u = byUser.get(e.userId) ?? { userId: e.userId, nickname: e.nickname, coins: 0 };
+    const u = byUser.get(e.userId) ?? {
+      userId: e.userId, nickname: e.nickname, coins: 0, orn: { small: 0, medium: 0, large: 0 },
+    };
+    const sign = e.coins < 0 ? -1 : 1;
+    const r = rewards(Math.abs(e.coins));
+    for (const t of TIERS) u.orn[t.key] += sign * r[t.key];
     u.coins += e.coins;
     if (e.nickname) u.nickname = e.nickname; // latest nickname wins
     byUser.set(e.userId, u);
   }
-  const total = [...byUser.values()].reduce((s, u) => s + Math.max(u.coins, 0), 0);
-  // Excluded users (streamer, mods, bots) still appear on the board for rewards
-  // but are removed from the draw pool.
-  const poolTotal = [...byUser.values()]
-    .filter((u) => !excluded.has(u.userId))
-    .reduce((s, u) => s + Math.max(u.coins, 0), 0);
-  return [...byUser.values()]
-    .filter((u) => u.coins > 0)
-    .sort((a, b) => b.coins - a.coins)
-    .map((u, i) => ({
+
+  const viewers = [...byUser.values()].filter((u) => u.coins > 0).map((u) => {
+    const rw = Object.fromEntries(TIERS.map((t) => [t.key, Math.max(u.orn[t.key], 0)]));
+    return { ...u, rewards: rw, entries: entriesOf(rw), eligible: !excluded.has(u.userId) };
+  });
+  // Excluded users (streamer, mods, bots) still appear on the board but are not in the draw pool.
+  const poolEntries = viewers.filter((v) => v.eligible).reduce((s, v) => s + v.entries, 0);
+
+  return viewers
+    .sort((a, b) => b.entries - a.entries || b.coins - a.coins)
+    .map((v, i) => ({
       rank: i + 1,
-      userId: u.userId,
-      nickname: u.nickname,
-      coins: u.coins,
-      rewards: rewards(u.coins),
-      eligible: !excluded.has(u.userId),
-      odds: !excluded.has(u.userId) && poolTotal > 0 ? u.coins / poolTotal : 0,
+      userId: v.userId,
+      nickname: v.nickname,
+      coins: v.coins,
+      rewards: v.rewards,
+      entries: v.entries,
+      eligible: v.eligible,
+      odds: v.eligible && poolEntries > 0 ? v.entries / poolEntries : 0,
     }));
 }
 
@@ -81,15 +103,15 @@ export function seededRandom(seed) {
   };
 }
 
-// Weighted draw: probability = coins / total coins of eligible viewers.
+// Weighted draw: probability = entries / total entries of eligible viewers.
 export function draw(board, seed) {
-  const pool = board.filter((r) => r.eligible && r.coins > 0);
-  const total = pool.reduce((s, r) => s + r.coins, 0);
+  const pool = board.filter((r) => r.eligible && r.entries > 0);
+  const total = pool.reduce((s, r) => s + r.entries, 0);
   if (total <= 0) return null;
   const pick = seededRandom(seed)() * total;
   let acc = 0;
   for (const r of pool) {
-    acc += r.coins;
+    acc += r.entries;
     if (pick < acc) return { winner: r, seed, pick, total };
   }
   return { winner: pool[pool.length - 1], seed, pick, total };

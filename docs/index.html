@@ -29,16 +29,17 @@
   .prize .amt { font: 900 clamp(2.4rem, 12vw, 3.4rem)/1 var(--display); font-style: italic; color: var(--rose-deep); }
   .prize p { margin: 0; }
 
-  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
   .stats .card { margin: 0; text-align: center; padding: 14px 8px; }
-  .stats b { display: block; font: 900 clamp(1.5rem, 8vw, 2.2rem)/1.1 var(--display); font-style: italic; font-variant-numeric: tabular-nums; }
-  .stats span { font-size: .8rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .stats b { display: block; font: 900 clamp(1.25rem, 6.5vw, 2rem)/1.1 var(--display); font-style: italic; font-variant-numeric: tabular-nums; }
+  .stats span { font-size: .7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 
   .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; text-align: center; }
   .tier { background: var(--blush); border: 2px solid var(--ink); border-radius: 12px; padding: 12px 4px 10px; }
   .tier svg { display: block; margin: 0 auto 6px; }
   .tier b { display: block; font: 900 1rem/1.1 var(--display); font-style: italic; text-transform: uppercase; }
-  .tier span { font-size: .85rem; font-weight: 700; color: var(--muted); }
+  .tier span { display: block; font-size: .72rem; font-weight: 700; color: var(--muted); line-height: 1.2; margin-top: 2px; }
+  .tier em { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 999px; background: var(--ink); color: #fff; font: 800 .72rem/1.4 var(--sans); font-style: normal; }
   .how { margin: 0; font-size: .95rem; }
 
   .find .row-in { display: flex; gap: 10px; }
@@ -63,7 +64,8 @@
   .who { min-width: 0; }
   .name { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: .8rem; color: var(--muted); font-weight: 600; flex-wrap: wrap; }
-  .orns { display: inline-flex; gap: 3px; align-items: flex-end; }
+  .orns { display: inline-flex; gap: 6px; align-items: flex-end; }
+  .oc { display: inline-flex; align-items: flex-end; gap: 2px; font-weight: 800; color: var(--ink); }
   .bar { height: 8px; border: 1.5px solid var(--ink); border-radius: 999px; background: #fff; margin-top: 8px; overflow: hidden; }
   .bar i { display: block; height: 100%; background: var(--rose-deep); transition: width .6s ease; }
   .nums { text-align: right; }
@@ -109,22 +111,24 @@
 
   <section class="card prize">
     <div class="amt">$100</div>
-    <p><b>Gift card giveaway.</b> One winner is drawn at the end. Every coin you send is a bigger slice of the odds.</p>
+    <p><b>Gift card giveaway.</b> One winner is drawn at the end. Every ornament you earn gives you entries, and more entries means better odds.</p>
   </section>
 
   <div class="stats">
-    <div class="card"><b id="total">–</b><span>Total coins</span></div>
+    <div class="card"><b id="total">–</b><span>Coins sent</span></div>
     <div class="card"><b id="viewers">–</b><span>Supporters</span></div>
+    <div class="card"><b id="entries">–</b><span>Entries</span></div>
   </div>
 
   <section class="card">
-    <h2>Ornament rewards</h2>
+    <h2>How you earn</h2>
+    <p class="muted" style="margin:0 0 8px">Ornaments are earned <b>per single gift</b>.</p>
     <div class="tiers" aria-label="Ornament tiers">
-      <div class="tier"><svg class="orn lit" width="34" height="40" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Small</b><span>1,000+</span></div>
-      <div class="tier"><svg class="orn lit" width="42" height="48" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Medium</b><span>5,000+</span></div>
-      <div class="tier"><svg class="orn lit" width="52" height="58" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Large</b><span>10,000+</span></div>
+      <div class="tier"><svg class="orn lit" width="34" height="40" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Small</b><span>1,000+ coin gift</span><em>1 entry</em></div>
+      <div class="tier"><svg class="orn lit" width="42" height="48" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Medium</b><span>5,000+ coin gift</span><em>5 entries</em></div>
+      <div class="tier"><svg class="orn lit" width="52" height="58" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Large</b><span>10,000+ coin gift</span><em>10 entries</em></div>
     </div>
-    <p class="how"><b>They stack.</b> Your coins add up across every stream, so 16,000 coins earns a small, a medium and a large.</p>
+    <p class="how"><b>Big gifts stack:</b> one 16,000-coin gift earns a small, a medium <i>and</i> a large (16 entries). Two separate 1,500-coin gifts earn 2 small ornaments. Gifts under 1,000 coins don’t earn an ornament on their own. A streak of the same gift counts as one gift at its total.</p>
   </section>
 
   <section class="card find">
@@ -138,7 +142,7 @@
   <div class="skeleton" id="skeleton" aria-hidden="true"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
   <div class="card empty" id="empty" hidden>
     <p class="script">be the first</p>
-    <p class="muted" style="margin:0">No gifts counted yet. Send a gift during the live to get on the board.</p>
+    <p class="muted" style="margin:0">Nobody has an entry yet. Send a single gift of 1,000+ coins during the live to earn an ornament and get on the board.</p>
   </div>
   <ol class="board" id="board"></ol>
 
@@ -160,25 +164,27 @@
   const orn = (size, lit) =>
     `<svg class="orn ${lit ? 'lit' : 'off'}" width="${size * 0.85}" height="${size}" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg>`;
 
-  function progress(coins) {
-    const next = TIERS.find((t) => coins < t.min);
-    if (!next) return { pct: 100, text: 'All unlocked 🎉' };
-    const prev = [...TIERS].reverse().find((t) => coins >= t.min)?.min ?? 0;
-    return { pct: Math.max(4, ((coins - prev) / (next.min - prev)) * 100), text: `${fmt.format(next.min - coins)} to ${next.n}` };
+  const NEXT_HINT = 'Send a single gift of 1,000+ coins to earn an ornament';
+
+  function ornaments(r) {
+    const parts = TIERS.filter((t) => r.rewards[t.k] > 0);
+    if (!parts.length) return { html: '', text: NEXT_HINT };
+    return {
+      html: parts.map((t, idx) => `<span class="oc" title="${r.rewards[t.k]} ${t.n}">${orn(14 + TIERS.indexOf(t) * 4, true)}×${r.rewards[t.k]}</span>`).join(''),
+      text: parts.map((t) => `${r.rewards[t.k]} ${t.n.toLowerCase()}`).join(' · '),
+    };
   }
 
   function rowHTML(r, i) {
-    const p = progress(r.coins);
-    const orns = TIERS.map((t, idx) => orn(12 + idx * 3, r.rewards[t.k])).join('');
+    const o = ornaments(r);
     const odds = r.eligible ? `${(r.odds * 100).toFixed(1)}% odds` : 'not in draw';
     return `<li class="row ${i < 3 ? 'top r' + (i + 1) : ''}" data-id="${esc(r.userId)}" data-name="${esc((r.nickname ?? '').toLowerCase())}">
       <span class="rank" aria-label="Rank ${r.rank}">${r.rank}</span>
       <div class="who">
         <div class="name">${esc(r.nickname ?? 'Anonymous')}</div>
-        <div class="meta"><span class="orns" aria-label="Ornaments earned">${orns}</span><span>${p.text}</span></div>
-        <div class="bar" role="progressbar" aria-valuenow="${Math.round(p.pct)}" aria-valuemin="0" aria-valuemax="100" aria-label="Progress to next ornament"><i style="width:${p.pct}%"></i></div>
+        <div class="meta">${o.html ? `<span class="orns" aria-label="Ornaments earned">${o.html}</span>` : ''}<span>${o.html ? o.text : NEXT_HINT}</span></div>
       </div>
-      <div class="nums"><b>${fmt.format(r.coins)}</b><small>coins</small><span class="odds">${odds}</span></div>
+      <div class="nums"><b>${fmt.format(r.entries)}</b><small>${r.entries === 1 ? 'entry' : 'entries'}</small><span class="odds">${odds}</span></div>
     </li>`;
   }
 
@@ -190,12 +196,13 @@
     $('pillText').textContent = d.active ? 'Live now' : done ? 'Winner picked' : 'Giveaway not running';
     $('total').textContent = fmt.format(d.totalCoins);
     $('viewers').textContent = fmt.format(d.viewers);
+    $('entries').textContent = fmt.format(d.totalEntries ?? 0);
     $('count').textContent = d.board.length ? `${d.board.length} shown` : '';
 
     $('winner').hidden = !d.winner;
     if (d.winner) {
       $('winnerName').textContent = d.winner.nickname;
-      $('winnerMeta').textContent = `${fmt.format(d.winner.coins)} coins sent`;
+      $('winnerMeta').textContent = `${fmt.format(d.winner.entries ?? 0)} entries · ${fmt.format(d.winner.coins)} coins sent`;
     }
 
     $('skeleton').hidden = true;
@@ -206,8 +213,8 @@
     list.querySelectorAll('.row').forEach((li) => {
       const id = li.dataset.id, row = d.board.find((r) => String(r.userId) === id);
       const before = prevCoins.get(id);
-      if (before !== undefined && row.coins > before) li.classList.add('bump');
-      prevCoins.set(id, row.coins);
+      if (before !== undefined && row.entries > before) li.classList.add('bump');
+      prevCoins.set(id, row.entries);
     });
     applySearch(false);
   }
@@ -220,19 +227,24 @@
     const hit = data.board.find((r) => (r.nickname ?? '').toLowerCase().includes(q));
     me.hidden = false;
     if (!hit) { me.innerHTML = 'No match yet. Send a gift during the live and you’ll appear here.'; return; }
-    const p = progress(hit.coins);
-    me.innerHTML = `<b>${esc(hit.nickname)}</b> · rank <b>#${hit.rank}</b> · <b>${fmt.format(hit.coins)}</b> coins · <b>${hit.eligible ? (hit.odds * 100).toFixed(1) + '%' : '–'}</b> chance to win<br><span class="muted">${p.text}</span>`;
+    const o = ornaments(hit);
+    me.innerHTML = `<b>${esc(hit.nickname)}</b> · rank <b>#${hit.rank}</b> · <b>${fmt.format(hit.entries)}</b> ${hit.entries === 1 ? 'entry' : 'entries'} · <b>${hit.eligible ? (hit.odds * 100).toFixed(1) + '%' : '–'}</b> chance to win<br><span class="muted">${hit.entries ? o.text : NEXT_HINT} · ${fmt.format(hit.coins)} coins sent</span>`;
     const li = document.querySelector(`.row[data-id="${CSS.escape(String(hit.userId))}"]`);
     if (li) { li.classList.add('hit'); if (scroll) li.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
   }
 
   function demoData() {
-    const names = ['stargazer_kay', 'Zhane 🧚🏻‍♀️', 'el_mamon33', 'goatedfrfr', 'luna.loves.live', 'JJ', 'maddie_m', 'tiktok_tom', 'sunny', 'cj_plays', 'ava', 'the_real_deal'];
-    const coins = [16400, 9800, 7200, 5100, 4300, 2600, 1800, 1000, 640, 300, 120, 30];
-    const total = coins.reduce((a, b) => a + b, 0);
-    return { active: true, updatedAt: Date.now(), totalCoins: total, viewers: coins.length, winner: null,
-      board: coins.map((c, i) => ({ rank: i + 1, userId: 'u' + i, nickname: names[i], coins: c, eligible: true, odds: c / total,
-        rewards: { small: c >= 1000, medium: c >= 5000, large: c >= 10000 } })) };
+    // [name, gifts sent...] - ornaments come from each single gift, not the total.
+    const sends = [['stargazer_kay', 16400, 2000], ['Zhane 🧚🏻‍♀️', 9800, 1500, 1500], ['el_mamon33', 6000, 1200], ['goatedfrfr', 1500, 1500, 1500],
+      ['luna.loves.live', 5200], ['JJ', 1000, 1000], ['maddie_m', 1800], ['tiktok_tom', 1000], ['sunny', 700, 700, 700], ['cj_plays', 300, 300], ['ava', 120], ['the_real_deal', 30]];
+    const rw = (c) => ({ small: c >= 1000 ? 1 : 0, medium: c >= 5000 ? 1 : 0, large: c >= 10000 ? 1 : 0 });
+    const rows = sends.map(([nickname, ...gifts], i) => {
+      const rewards = gifts.reduce((a, c) => { const r = rw(c); return { small: a.small + r.small, medium: a.medium + r.medium, large: a.large + r.large }; }, { small: 0, medium: 0, large: 0 });
+      return { userId: 'u' + i, nickname, coins: gifts.reduce((a, b) => a + b, 0), rewards, entries: rewards.small + rewards.medium * 5 + rewards.large * 10, eligible: true };
+    }).sort((a, b) => b.entries - a.entries || b.coins - a.coins);
+    const totalEntries = rows.reduce((a, r) => a + r.entries, 0);
+    rows.forEach((r, i) => { r.rank = i + 1; r.odds = totalEntries ? r.entries / totalEntries : 0; });
+    return { active: true, updatedAt: Date.now(), totalCoins: rows.reduce((a, r) => a + r.coins, 0), totalEntries, viewers: rows.length, winner: null, board: rows };
   }
 
   async function refresh() {

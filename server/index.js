@@ -56,9 +56,18 @@ function snapshot() {
     active,
     updatedAt: Date.now(),
     totalCoins: board.reduce((s, r) => s + r.coins, 0),
+    totalEntries: board.filter((r) => r.eligible).reduce((s, r) => s + r.entries, 0),
     viewers: board.length,
     board: board.slice(0, 100),
-    winner: result ? { nickname: result.nickname, coins: result.coins, seed: result.seed, at: result.ts } : null,
+    // Everyone owed at least one ornament (full list, for shipping).
+    owed: board
+      .filter((r) => r.rewards.small + r.rewards.medium + r.rewards.large > 0)
+      .map((r) => ({ userId: r.userId, nickname: r.nickname, ...r.rewards })),
+    ornamentTotals: board.reduce(
+      (t, r) => ({ small: t.small + r.rewards.small, medium: t.medium + r.rewards.medium, large: t.large + r.rewards.large }),
+      { small: 0, medium: 0, large: 0 },
+    ),
+    winner: result ? { nickname: result.nickname, coins: result.coins, entries: result.entries, seed: result.seed, at: result.ts } : null,
   };
 }
 
@@ -165,7 +174,7 @@ http.createServer(async (req, res) => {
     if (action === 'start') { append({ type: 'start', ts }); return json(res, 200, snapshot()); }
     if (action === 'stop') { append({ type: 'stop', ts }); return json(res, 200, snapshot()); }
     if (action === 'adjust') {
-      // Manual correction for a missed/duplicated gift. coins may be negative.
+      // Manual correction: coins = value of ONE gift to add (positive) or to remove (negative).
       if (!body.userId || !Number.isFinite(body.coins)) return json(res, 400, { error: 'userId and coins required' });
       append({ type: 'adjust', ts, userId: String(body.userId), nickname: body.nickname, coins: body.coins, note: body.note });
       return json(res, 200, snapshot());
@@ -174,8 +183,8 @@ http.createServer(async (req, res) => {
       if (currentState().active) return json(res, 409, { error: 'stop the giveaway before drawing' });
       const seed = body.seed ?? randomBytes(16).toString('hex');
       const r = draw(aggregate(giveawayEvents(), EXCLUDED), seed);
-      if (!r) return json(res, 400, { error: 'no eligible coins' });
-      append({ type: 'draw', ts, userId: r.winner.userId, nickname: r.winner.nickname, coins: r.winner.coins, seed, pick: r.pick, total: r.total });
+      if (!r) return json(res, 400, { error: 'nobody has any entries yet (a gift must be 1,000+ coins to earn an ornament)' });
+      append({ type: 'draw', ts, userId: r.winner.userId, nickname: r.winner.nickname, coins: r.winner.coins, entries: r.winner.entries, seed, pick: r.pick, total: r.total });
       return json(res, 200, { winner: r.winner, seed, pick: r.pick, total: r.total });
     }
     return json(res, 404, { error: 'unknown action' });
