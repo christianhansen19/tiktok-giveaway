@@ -18,10 +18,11 @@ export function rewards(coins) {
 // message (repeatEnd = true) carries the full repeatCount, so we count only that one.
 // Coins = diamondCount (the gift's coin price) x repeatCount.
 export function giftToEvent(data, now = Date.now()) {
-  const giftType = data?.giftDetails?.giftType ?? data?.giftType;
+  const g = data?.gift ?? data?.giftDetails ?? {};
+  const giftType = g.type ?? g.giftType ?? data?.giftType;
   const repeatEnd = !!data?.repeatEnd;
   if (giftType === 1 && !repeatEnd) return null; // streak still running
-  const unit = Number(data?.giftDetails?.diamondCount ?? data?.diamondCount ?? 0);
+  const unit = Number(g.diamondCount ?? data?.diamondCount ?? 0);
   const repeat = Math.max(Number(data?.repeatCount ?? 1), 1);
   const coins = unit * repeat;
   const user = data?.user ?? data ?? {};
@@ -34,7 +35,7 @@ export function giftToEvent(data, now = Date.now()) {
     uniqueId: user.uniqueId,
     nickname: user.nickname ?? user.uniqueId,
     giftId: data?.giftId,
-    giftName: data?.giftDetails?.giftName ?? data?.giftName,
+    giftName: g.name ?? g.giftName ?? data?.giftName,
     coins,
     msgId: data?.common?.msgId != null ? String(data.common.msgId) : undefined,
   };

@@ -79,8 +79,24 @@ if (TIKTOK_USERNAME) {
   const connect = () => {
     const conn = new TikTokLiveConnection(TIKTOK_USERNAME, {});
     conn.on(WebcastEvent.GIFT, (data) => {
-      if (!currentState().active) return;
       const e = giftToEvent(data);
+      // Log every gift message (counted or not) so problems are visible in Railway logs.
+      try {
+        console.log('GIFT', JSON.stringify({
+          counted: !!e && currentState().active,
+          active: currentState().active,
+          user: data?.user?.nickname ?? data?.nickname,
+          userId: data?.user?.userId ?? data?.user?.idStr ?? data?.userId,
+          giftId: data?.giftId,
+          giftName: data?.gift?.name ?? data?.giftDetails?.giftName ?? data?.giftName,
+          giftType: data?.gift?.type ?? data?.giftDetails?.giftType ?? data?.giftType,
+          diamondCount: data?.gift?.diamondCount ?? data?.giftDetails?.diamondCount ?? data?.diamondCount,
+          repeatCount: data?.repeatCount,
+          repeatEnd: data?.repeatEnd,
+          keys: Object.keys(data ?? {}).slice(0, 25),
+        }));
+      } catch {}
+      if (!currentState().active) return;
       if (!e) return;
       if (e.msgId && seen.has(e.msgId)) return;
       if (e.msgId) seen.add(e.msgId);

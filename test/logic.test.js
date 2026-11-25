@@ -55,3 +55,14 @@ test('draw is deterministic for a seed and matches coin share over many draws', 
   assert.ok(Math.abs(wins.b / N - 0.2) < 0.02, `b=${wins.b / N}`);
   assert.ok(Math.abs(wins.c / N - 0.1) < 0.02, `c=${wins.c / N}`);
 });
+
+test('current connector shape: price lives in data.gift, repeatEnd is 0/1', () => {
+  const msg = { giftId: '5655', repeatCount: 1, user: { userId: '7675183019858723853', nickname: 'goatedfrfr' }, gift: { type: 1, diamondCount: 1, name: 'Rose' } };
+  assert.equal(giftToEvent({ ...msg, repeatEnd: 0 }), null); // streak running
+  const e = giftToEvent({ ...msg, repeatEnd: 1 });
+  assert.equal(e.coins, 1);
+  assert.equal(e.giftName, 'Rose');
+  assert.equal(e.userId, '7675183019858723853');
+  const galaxy = giftToEvent({ ...msg, gift: { type: 2, diamondCount: 1000, name: 'Galaxy' }, repeatEnd: 0 });
+  assert.equal(galaxy.coins, 1000);
+});
