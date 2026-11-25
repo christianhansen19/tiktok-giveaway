@@ -3,78 +3,263 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Giveaway Leaderboard</title>
+<title>Olivia The OG Giveaway Leaderboard</title>
+<meta name="description" content="Live giveaway leaderboard: see your coins, your ornaments and your odds to win the $100 gift card.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Mrs+Saint+Delafield&family=Playfair+Display:ital,wght@1,900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
 <style>
-  :root { --bg:#fffaf5; --fg:#1f2430; --muted:#6b7280; --card:#ffffff; --line:#eadfd3; --accent:#c8102e; }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) { --bg:#14171f; --fg:#f2f2f2; --muted:#9aa3b2; --card:#1d212b; --line:#2b3140; --accent:#ff5470; }
+  header { text-align: center; padding: 8px 0 24px; }
+  header .script { font-size: clamp(3.2rem, 14vw, 5rem); }
+  header .title { font-size: clamp(2.1rem, 10vw, 4.4rem); margin-top: -6px; }
+  header .pill { margin-top: 18px; }
+  .updated { display: block; margin-top: 10px; font-size: .8rem; color: var(--ink); opacity: .75; }
+
+  .banner { border: 2px solid var(--ink); border-radius: 12px; padding: 10px 14px; margin: 0 0 20px; font-weight: 700; background: var(--gold); box-shadow: 2px 2px 0 var(--ink); }
+  .banner[hidden] { display: none; }
+  .banner.warn { background: var(--paper); }
+
+  .winner { text-align: center; background: var(--gold); padding: 20px 16px; }
+  .winner[hidden] { display: none; }
+  .winner .script { font-size: 2.6rem; }
+  .winner .name { font: 900 clamp(1.6rem, 8vw, 2.6rem)/1.1 var(--display); font-style: italic; text-transform: uppercase; word-break: break-word; }
+
+  .prize { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+  .prize .amt { font: 900 clamp(2.4rem, 12vw, 3.4rem)/1 var(--display); font-style: italic; color: var(--rose-deep); }
+  .prize p { margin: 0; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .stats .card { margin: 0; text-align: center; padding: 14px 8px; }
+  .stats b { display: block; font: 900 clamp(1.5rem, 8vw, 2.2rem)/1.1 var(--display); font-style: italic; font-variant-numeric: tabular-nums; }
+  .stats span { font-size: .8rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+
+  .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; text-align: center; }
+  .tier { background: var(--blush); border: 2px solid var(--ink); border-radius: 12px; padding: 12px 4px 10px; }
+  .tier svg { display: block; margin: 0 auto 6px; }
+  .tier b { display: block; font: 900 1rem/1.1 var(--display); font-style: italic; text-transform: uppercase; }
+  .tier span { font-size: .85rem; font-weight: 700; color: var(--muted); }
+  .how { margin: 0; font-size: .95rem; }
+
+  .find .row-in { display: flex; gap: 10px; }
+  .me { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--blush); border: 2px dashed var(--ink); }
+  .me[hidden] { display: none; }
+  .me b { font-weight: 800; }
+
+  .board-head { display: flex; justify-content: space-between; align-items: baseline; margin: 28px 2px 12px; }
+  .board-head h2 { margin: 0; font: 900 1.5rem/1 var(--display); font-style: italic; text-transform: uppercase; color: var(--paper); -webkit-text-stroke: 1px var(--ink); paint-order: stroke fill; text-shadow: 2px 2px 0 var(--ink); }
+  .board-head span { font-size: .85rem; font-weight: 700; }
+
+  ol.board { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .row { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: center; background: var(--paper); border: 2px solid var(--ink); border-radius: 16px; box-shadow: var(--sticker); padding: 12px; }
+  .row.top { padding: 16px 12px; }
+  .row.hit { background: #fff3c9; outline: 3px solid var(--ink); }
+  .row.bump { animation: bump .9s ease-out; }
+  @keyframes bump { 0% { background: var(--gold); transform: scale(1.02); } 100% { background: var(--paper); transform: none; } }
+  .rank { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font: 900 1.1rem/1 var(--display); font-style: italic; background: var(--blush); border: 2px solid var(--ink); }
+  .r1 .rank { background: var(--gold); }
+  .r2 .rank { background: var(--silver); }
+  .r3 .rank { background: var(--bronze); }
+  .who { min-width: 0; }
+  .name { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: .8rem; color: var(--muted); font-weight: 600; flex-wrap: wrap; }
+  .orns { display: inline-flex; gap: 3px; align-items: flex-end; }
+  .bar { height: 8px; border: 1.5px solid var(--ink); border-radius: 999px; background: #fff; margin-top: 8px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--rose-deep); transition: width .6s ease; }
+  .nums { text-align: right; }
+  .nums b { display: block; font: 900 1.25rem/1.1 var(--display); font-style: italic; font-variant-numeric: tabular-nums; }
+  .nums small { display: block; font-size: .75rem; font-weight: 700; color: var(--muted); }
+  .odds { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px; background: var(--ink); color: #fff; font-size: .75rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+  .orn path.fill, .orn circle.fill { fill: #e6cbd6; }
+  .orn.lit circle.fill { fill: var(--rose-deep); }
+  .orn .cap { fill: var(--gold); }
+  .orn { stroke: var(--ink); stroke-width: 1.5; stroke-linejoin: round; }
+  .orn.off { opacity: .35; }
+
+  .empty, .skeleton { text-align: center; padding: 28px 16px; }
+  .empty .script { font-size: 2.4rem; }
+  .skeleton .sk { height: 76px; border-radius: 16px; border: 2px solid var(--ink); background: linear-gradient(90deg, var(--paper), var(--blush), var(--paper)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; margin-bottom: 12px; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+
+  footer { text-align: center; margin-top: 32px; font-size: .8rem; opacity: .75; }
+
+  @media (min-width: 560px) {
+    .row { grid-template-columns: 52px 1fr auto; padding: 14px 16px; }
+    .rank { width: 52px; height: 52px; }
   }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
-  main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
-  h1 { margin:0 0 4px; font-size:1.8rem; }
-  .sub { color:var(--muted); margin:0 0 20px; }
-  .stats { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
-  .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 16px; }
-  .stat b { display:block; font-size:1.3rem; }
-  .rules { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin-bottom:20px; }
-  .winner { background:var(--accent); color:#fff; border-radius:12px; padding:16px; margin-bottom:20px; font-weight:600; }
-  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-  th, td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--line); }
-  th { font-size:.8rem; text-transform:uppercase; color:var(--muted); }
-  td.n { text-align:right; font-variant-numeric:tabular-nums; }
-  .badge { display:inline-block; font-size:.75rem; padding:1px 8px; border-radius:999px; border:1px solid var(--accent); color:var(--accent); margin-right:4px; }
-  .err { color:var(--accent); }
-  @media (max-width:520px) { .hide-sm { display:none; } }
 </style>
 </head>
 <body>
 <main>
-  <h1>🎄 Giveaway Leaderboard</h1>
-  <p class="sub" id="status">Loading…</p>
-  <div id="winner"></div>
+  <header>
+    <p class="script">olivia the og</p>
+    <h1 class="title">Giveaway<br>Leaderboard</h1>
+    <span class="pill" id="pill" role="status" aria-live="polite"><span class="dot"></span><span id="pillText">Loading</span></span>
+    <span class="updated" id="updated"></span>
+  </header>
+
+  <div class="banner warn" id="banner" role="status" hidden></div>
+
+  <section class="card winner" id="winner" hidden aria-live="polite">
+    <p class="script">and the winner is</p>
+    <div class="name" id="winnerName"></div>
+    <p class="muted" id="winnerMeta" style="margin:6px 0 0"></p>
+  </section>
+
+  <section class="card prize">
+    <div class="amt">$100</div>
+    <p><b>Gift card giveaway.</b> One winner is drawn at the end. Every coin you send is a bigger slice of the odds.</p>
+  </section>
+
   <div class="stats">
-    <div class="stat"><span>Total coins</span><b id="total">–</b></div>
-    <div class="stat"><span>Supporters</span><b id="viewers">–</b></div>
+    <div class="card"><b id="total">–</b><span>Total coins</span></div>
+    <div class="card"><b id="viewers">–</b><span>Supporters</span></div>
   </div>
-  <div class="rules">
-    <b>How it works:</b> your coins add up over the whole giveaway.
-    1,000+ = small ornament · 5,000+ = medium · 10,000+ = large (they stack!).
-    One winner is drawn for the $100 gift card — your odds are your share of all coins.
+
+  <section class="card">
+    <h2>Ornament rewards</h2>
+    <div class="tiers" aria-label="Ornament tiers">
+      <div class="tier"><svg class="orn lit" width="34" height="40" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Small</b><span>1,000+</span></div>
+      <div class="tier"><svg class="orn lit" width="42" height="48" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Medium</b><span>5,000+</span></div>
+      <div class="tier"><svg class="orn lit" width="52" height="58" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Large</b><span>10,000+</span></div>
+    </div>
+    <p class="how"><b>They stack.</b> Your coins add up across every stream, so 16,000 coins earns a small, a medium and a large.</p>
+  </section>
+
+  <section class="card find">
+    <h2>Find yourself</h2>
+    <label for="q">Your TikTok name</label>
+    <div class="row-in"><input id="q" type="search" placeholder="Type your name" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"></div>
+    <div class="me" id="me" hidden aria-live="polite"></div>
+  </section>
+
+  <div class="board-head"><h2>Top supporters</h2><span id="count"></span></div>
+  <div class="skeleton" id="skeleton" aria-hidden="true"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
+  <div class="card empty" id="empty" hidden>
+    <p class="script">be the first</p>
+    <p class="muted" style="margin:0">No gifts counted yet. Send a gift during the live to get on the board.</p>
   </div>
-  <table>
-    <thead><tr><th>#</th><th>Viewer</th><th class="n">Coins</th><th class="hide-sm">Ornaments</th><th class="n">Win odds</th></tr></thead>
-    <tbody id="rows"></tbody>
-  </table>
+  <ol class="board" id="board"></ol>
+
+  <footer>Updates automatically. Coins are counted from the moment the giveaway starts.</footer>
 </main>
+
 <script>
-  // Set this to your deployed API URL (Railway), no trailing slash.
+  // Your server address (no trailing slash).
   const API = 'https://giveaway-api-production-d2ee64f6.up.railway.app';
+  const DEMO = new URLSearchParams(location.search).has('demo');
+
+  const TIERS = [{ k: 'small', n: 'Small', min: 1000 }, { k: 'medium', n: 'Medium', min: 5000 }, { k: 'large', n: 'Large', min: 10000 }];
   const fmt = new Intl.NumberFormat();
   const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  let data = null, lastOk = 0, prevCoins = new Map(), query = '';
+
+  const orn = (size, lit) =>
+    `<svg class="orn ${lit ? 'lit' : 'off'}" width="${size * 0.85}" height="${size}" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg>`;
+
+  function progress(coins) {
+    const next = TIERS.find((t) => coins < t.min);
+    if (!next) return { pct: 100, text: 'All unlocked 🎉' };
+    const prev = [...TIERS].reverse().find((t) => coins >= t.min)?.min ?? 0;
+    return { pct: Math.max(4, ((coins - prev) / (next.min - prev)) * 100), text: `${fmt.format(next.min - coins)} to ${next.n}` };
+  }
+
+  function rowHTML(r, i) {
+    const p = progress(r.coins);
+    const orns = TIERS.map((t, idx) => orn(12 + idx * 3, r.rewards[t.k])).join('');
+    const odds = r.eligible ? `${(r.odds * 100).toFixed(1)}% odds` : 'not in draw';
+    return `<li class="row ${i < 3 ? 'top r' + (i + 1) : ''}" data-id="${esc(r.userId)}" data-name="${esc((r.nickname ?? '').toLowerCase())}">
+      <span class="rank" aria-label="Rank ${r.rank}">${r.rank}</span>
+      <div class="who">
+        <div class="name">${esc(r.nickname ?? 'Anonymous')}</div>
+        <div class="meta"><span class="orns" aria-label="Ornaments earned">${orns}</span><span>${p.text}</span></div>
+        <div class="bar" role="progressbar" aria-valuenow="${Math.round(p.pct)}" aria-valuemin="0" aria-valuemax="100" aria-label="Progress to next ornament"><i style="width:${p.pct}%"></i></div>
+      </div>
+      <div class="nums"><b>${fmt.format(r.coins)}</b><small>coins</small><span class="odds">${odds}</span></div>
+    </li>`;
+  }
+
+  function render() {
+    const d = data; if (!d) return;
+    const pill = $('pill');
+    const done = !d.active && d.winner;
+    pill.className = 'pill ' + (d.active ? 'live' : done ? 'done' : '');
+    $('pillText').textContent = d.active ? 'Live now' : done ? 'Winner picked' : 'Giveaway not running';
+    $('total').textContent = fmt.format(d.totalCoins);
+    $('viewers').textContent = fmt.format(d.viewers);
+    $('count').textContent = d.board.length ? `${d.board.length} shown` : '';
+
+    $('winner').hidden = !d.winner;
+    if (d.winner) {
+      $('winnerName').textContent = d.winner.nickname;
+      $('winnerMeta').textContent = `${fmt.format(d.winner.coins)} coins sent`;
+    }
+
+    $('skeleton').hidden = true;
+    $('empty').hidden = d.board.length > 0;
+
+    const list = $('board');
+    list.innerHTML = d.board.map(rowHTML).join('');
+    list.querySelectorAll('.row').forEach((li) => {
+      const id = li.dataset.id, row = d.board.find((r) => String(r.userId) === id);
+      const before = prevCoins.get(id);
+      if (before !== undefined && row.coins > before) li.classList.add('bump');
+      prevCoins.set(id, row.coins);
+    });
+    applySearch(false);
+  }
+
+  function applySearch(scroll) {
+    const q = query.trim().toLowerCase();
+    const me = $('me');
+    document.querySelectorAll('.row.hit').forEach((e) => e.classList.remove('hit'));
+    if (!q || !data) { me.hidden = true; return; }
+    const hit = data.board.find((r) => (r.nickname ?? '').toLowerCase().includes(q));
+    me.hidden = false;
+    if (!hit) { me.innerHTML = 'No match yet. Send a gift during the live and you’ll appear here.'; return; }
+    const p = progress(hit.coins);
+    me.innerHTML = `<b>${esc(hit.nickname)}</b> · rank <b>#${hit.rank}</b> · <b>${fmt.format(hit.coins)}</b> coins · <b>${hit.eligible ? (hit.odds * 100).toFixed(1) + '%' : '–'}</b> chance to win<br><span class="muted">${p.text}</span>`;
+    const li = document.querySelector(`.row[data-id="${CSS.escape(String(hit.userId))}"]`);
+    if (li) { li.classList.add('hit'); if (scroll) li.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
+  }
+
+  function demoData() {
+    const names = ['stargazer_kay', 'Zhane 🧚🏻‍♀️', 'el_mamon33', 'goatedfrfr', 'luna.loves.live', 'JJ', 'maddie_m', 'tiktok_tom', 'sunny', 'cj_plays', 'ava', 'the_real_deal'];
+    const coins = [16400, 9800, 7200, 5100, 4300, 2600, 1800, 1000, 640, 300, 120, 30];
+    const total = coins.reduce((a, b) => a + b, 0);
+    return { active: true, updatedAt: Date.now(), totalCoins: total, viewers: coins.length, winner: null,
+      board: coins.map((c, i) => ({ rank: i + 1, userId: 'u' + i, nickname: names[i], coins: c, eligible: true, odds: c / total,
+        rewards: { small: c >= 1000, medium: c >= 5000, large: c >= 10000 } })) };
+  }
 
   async function refresh() {
+    if (document.hidden) return;
+    if (DEMO) { data = demoData(); lastOk = Date.now(); $('banner').hidden = false; $('banner').className = 'banner'; $('banner').textContent = 'Demo data: this is not the real leaderboard.'; render(); return; }
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 8000);
     try {
-      const d = await (await fetch(API + '/leaderboard', { cache: 'no-store' })).json();
-      $('status').textContent = d.active ? 'LIVE – updating automatically' : 'Giveaway not running';
-      $('status').className = 'sub';
-      $('total').textContent = fmt.format(d.totalCoins);
-      $('viewers').textContent = fmt.format(d.viewers);
-      $('winner').innerHTML = d.winner
-        ? `<div class="winner">🏆 Winner: ${esc(d.winner.nickname)} (${fmt.format(d.winner.coins)} coins)</div>` : '';
-      $('rows').innerHTML = d.board.map((r) => {
-        const b = [r.rewards.large && 'Large', r.rewards.medium && 'Medium', r.rewards.small && 'Small']
-          .filter(Boolean).map((x) => `<span class="badge">${x}</span>`).join('');
-        const odds = r.eligible ? (r.odds * 100).toFixed(1) + '%' : '–';
-        return `<tr><td>${r.rank}</td><td>${esc(r.nickname)}</td><td class="n">${fmt.format(r.coins)}</td><td class="hide-sm">${b || '–'}</td><td class="n">${odds}</td></tr>`;
-      }).join('');
-    } catch (e) {
-      $('status').textContent = 'Can’t reach the server right now – retrying…';
-      $('status').className = 'sub err';
-    }
+      const r = await fetch(API + '/leaderboard', { cache: 'no-store', signal: ctl.signal });
+      if (!r.ok) throw new Error(r.status);
+      data = await r.json(); lastOk = Date.now();
+      $('banner').hidden = true;
+      render();
+    } catch {
+      $('skeleton').hidden = !!data;
+      $('banner').className = 'banner warn';
+      $('banner').textContent = data ? 'Reconnecting… showing the last update.' : 'Can’t reach the leaderboard right now. Retrying…';
+      $('banner').hidden = false;
+    } finally { clearTimeout(t); }
   }
+
+  $('q').addEventListener('input', (e) => { query = e.target.value; applySearch(false); });
+  $('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') applySearch(true); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  setInterval(() => { if (lastOk) { const s = Math.round((Date.now() - lastOk) / 1000); $('updated').textContent = s < 3 ? 'Updated just now' : `Updated ${s}s ago`; } }, 1000);
   refresh();
-  setInterval(refresh, 7000);
+  setInterval(refresh, 6000);
 </script>
 </body>
 </html>
