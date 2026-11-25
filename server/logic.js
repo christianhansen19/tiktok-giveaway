@@ -1,24 +1,31 @@
 import { createHash } from 'node:crypto';
 
 // RULES
-// 1. Ornaments are earned PER SINGLE GIFT (a streak counts as one gift at its total):
-//      gift >= 1,000 coins  -> 1 small
-//      gift >= 5,000 coins  -> + 1 medium
-//      gift >= 10,000 coins -> + 1 large
-//    A big gift stacks: one 16,000-coin gift = small + medium + large.
-//    Two separate 1,500-coin gifts = 2 small.
-// 2. Draw entries come from ornaments: 1 per small, 5 per medium, 10 per large.
-//    A viewer's chance to win = their entries / all eligible entries.
+// 1. Each SINGLE GIFT (a streak counts as one gift at its total) is split into ornaments by
+//    coin value, biggest first: large = 10,000, medium = 5,000, small = 1,000.
+//    Leftovers under 1,000 are ignored.
+//      1,500  -> 1 small                 12,000 -> 1 large + 2 small
+//      2,500  -> 2 small                 16,000 -> 1 large + 1 medium + 1 small
+//      5,000  -> 1 medium                25,000 -> 2 large + 1 medium
+//      7,000  -> 1 medium + 2 small
+//    Gifts add up per gift, not as a running total: two 1,500 gifts = 2 small.
+// 2. Draw entries come from ornaments: 1 per small, 5 per medium, 10 per large
+//    (so 1 entry per 1,000 coins of ornament value). A viewer's chance to win =
+//    their entries / all eligible entries.
 export const TIERS = [
-  { key: 'small', min: 1000, entries: 1 },
-  { key: 'medium', min: 5000, entries: 5 },
-  { key: 'large', min: 10000, entries: 10 },
+  { key: 'small', value: 1000, entries: 1 },
+  { key: 'medium', value: 5000, entries: 5 },
+  { key: 'large', value: 10000, entries: 10 },
 ];
 
-// Ornaments earned by ONE gift worth `coins`.
+// Ornaments earned by ONE gift worth `coins` (counts, can be more than 1 of a size).
 export function rewards(coins) {
   const out = { small: 0, medium: 0, large: 0 };
-  for (const t of TIERS) if (coins >= t.min) out[t.key] = 1;
+  let left = Math.max(coins, 0);
+  for (const t of [...TIERS].reverse()) { // large, medium, small
+    out[t.key] = Math.floor(left / t.value);
+    left -= out[t.key] * t.value;
+  }
   return out;
 }
 
@@ -119,11 +126,12 @@ export function draw(board, seed) {
 
 // ORNAMENT QUEUE: one item per ornament, oldest first, for the current giveaway.
 // Items are derived from the event log, so nothing is stored twice:
-//  - each gift / positive manual adjust adds the ornaments that single gift earns
+//  - each gift / positive manual adjust adds every ornament that single gift is split into
 //  - a negative manual adjust cancels the latest still-unwritten ornament of that size
 //    for that viewer (a gift counted by mistake disappears from the list)
 //  - `ornament_check` events mark an item written / un-written (last event wins)
-// Item ids are "<position in the full log>-<size>". The log is append-only, so ids never change.
+// Item ids are "<position in the full log>-<size>" (extras of the same size add "-2", "-3"...).
+// The log is append-only, so ids never change.
 export function buildQueue(events) {
   const startIdx = events.map((e) => e.type).lastIndexOf('start');
   if (startIdx === -1) return [];
@@ -135,13 +143,15 @@ export function buildQueue(events) {
     if (e.type !== 'gift' && e.type !== 'adjust') continue;
     const r = rewards(Math.abs(e.coins));
     for (const t of TIERS) {
-      if (!r[t.key]) continue;
-      if (e.coins >= 0) {
-        items.push({ id: `${i}-${t.key}`, userId: e.userId, nickname: e.nickname, size: t.key, coins: e.coins, ts: e.ts });
-      } else {
-        for (let j = items.length - 1; j >= 0; j--) {
-          const it = items[j];
-          if (it.userId === e.userId && it.size === t.key && !done.get(it.id)) { items.splice(j, 1); break; }
+      for (let n = 1; n <= r[t.key]; n++) {
+        if (e.coins >= 0) {
+          // First of a size keeps the plain id "<pos>-<size>"; extras are "<pos>-<size>-<n>".
+          items.push({ id: n === 1 ? `${i}-${t.key}` : `${i}-${t.key}-${n}`, userId: e.userId, nickname: e.nickname, size: t.key, coins: e.coins, ts: e.ts });
+        } else {
+          for (let j = items.length - 1; j >= 0; j--) {
+            const it = items[j];
+            if (it.userId === e.userId && it.size === t.key && !done.get(it.id)) { items.splice(j, 1); break; }
+          }
         }
       }
     }

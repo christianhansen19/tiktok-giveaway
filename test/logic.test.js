@@ -3,26 +3,37 @@ import assert from 'node:assert/strict';
 import { rewards, entriesOf, aggregate, draw, giftToEvent, buildQueue } from '../server/logic.js';
 
 const gift = (userId, coins, nickname = userId) => ({ type: 'gift', userId, nickname, coins });
+const sizes = (r) => `${r.large}L ${r.medium}M ${r.small}S`;
 
-test('ornaments for ONE gift at tier boundaries', () => {
-  const r = (c) => Object.values(rewards(c)).join('');
-  assert.equal(r(999), '000');
-  assert.equal(r(1000), '100');
-  assert.equal(r(4999), '100');
-  assert.equal(r(5000), '110');
-  assert.equal(r(9999), '110');
-  assert.equal(r(10000), '111');
+test('a gift is split by value, biggest first (large 10,000 / medium 5,000 / small 1,000)', () => {
+  const cases = {
+    999: '0L 0M 0S',
+    1000: '0L 0M 1S',
+    1500: '0L 0M 1S',
+    2500: '0L 0M 2S',
+    4999: '0L 0M 4S',
+    5000: '0L 1M 0S',
+    7000: '0L 1M 2S',
+    9000: '0L 1M 4S',
+    9999: '0L 1M 4S',
+    10000: '1L 0M 0S',
+    12000: '1L 0M 2S',
+    16000: '1L 1M 1S',
+    25000: '2L 1M 0S',
+  };
+  for (const [coins, want] of Object.entries(cases)) assert.equal(sizes(rewards(Number(coins))), want, `${coins} coins`);
 });
 
-test('one 16,000-coin gift stacks small + medium + large', () => {
-  assert.deepEqual(rewards(16000), { small: 1, medium: 1, large: 1 });
+test('12,000-coin gift = 1 large + 2 small (not a medium)', () => {
+  assert.deepEqual(rewards(12000), { small: 2, medium: 0, large: 1 });
 });
 
-test('entries: 1 per small, 5 per medium, 10 per large', () => {
+test('entries: 1 per small, 5 per medium, 10 per large = 1 per 1,000 coins of ornament value', () => {
   assert.equal(entriesOf({ small: 1, medium: 0, large: 0 }), 1);
-  assert.equal(entriesOf({ small: 1, medium: 1, large: 0 }), 6);
   assert.equal(entriesOf({ small: 1, medium: 1, large: 1 }), 16);
-  assert.equal(entriesOf({ small: 2, medium: 0, large: 0 }), 2);
+  assert.equal(entriesOf(rewards(12000)), 12);
+  assert.equal(entriesOf(rewards(16000)), 16);
+  assert.equal(entriesOf(rewards(1500)), 1);
 });
 
 test('two separate 1,500 gifts = 2 small ornaments (not cumulative 3,000)', () => {
@@ -39,10 +50,10 @@ test('small gifts add coins but earn nothing, even when they add up past 1,000',
   assert.equal(row.coins, 1800);
 });
 
-test('a gift of exactly 10,000 earns all three and 16 entries', () => {
+test('a gift of exactly 10,000 is one large (10 entries)', () => {
   const [row] = aggregate([gift('a', 10000)]);
-  assert.deepEqual(row.rewards, { small: 1, medium: 1, large: 1 });
-  assert.equal(row.entries, 16);
+  assert.deepEqual(row.rewards, { small: 0, medium: 0, large: 1 });
+  assert.equal(row.entries, 10);
 });
 
 test('streak gifts only count when the streak ends, with full repeatCount', () => {
@@ -75,11 +86,14 @@ test('manual adjust: positive adds one gift of that size, negative removes one',
   const undone = aggregate([gift('a', 1500), gift('a', 1500), { type: 'adjust', userId: 'a', coins: -1500 }])[0];
   assert.deepEqual(undone.rewards, { small: 1, medium: 0, large: 0 });
   assert.equal(undone.coins, 1500);
+  const big = aggregate([gift('a', 12000), { type: 'adjust', userId: 'a', coins: -12000 }]);
+  assert.equal(big.length, 0); // coins back to 0, nothing left
 });
 
 test('board ranks by entries, then coins; excluded users are on the board but not in the pool', () => {
+  // host 20,000 = 20 entries; a 6,000 = 1M+1S = 6; b two 1,500 = 2; c 900 = 0
   const b = aggregate([gift('a', 6000), gift('b', 1500), gift('b', 1500), gift('host', 20000), gift('c', 900)], new Set(['host']));
-  assert.deepEqual(b.map((r) => r.userId), ['host', 'a', 'b', 'c']); // 16, 6, 2, 0 entries
+  assert.deepEqual(b.map((r) => r.userId), ['host', 'a', 'b', 'c']);
   assert.equal(b[0].eligible, false);
   assert.equal(b[0].odds, 0);
   assert.ok(Math.abs(b[1].odds - 6 / 8) < 1e-9); // pool = a(6) + b(2)
@@ -87,16 +101,16 @@ test('board ranks by entries, then coins; excluded users are on the board but no
 });
 
 test('draw is deterministic for a seed and matches entry share over many draws', () => {
-  // a: one 16,000 gift = 16 entries; b: 5,000 gift = 6 entries; c: 1,000 gift = 1 entry; d: 900 = 0 entries
+  // a: 16,000 = 16 entries; b: 5,000 = 5; c: 1,000 = 1; d: 900 = 0
   const board = aggregate([gift('a', 16000), gift('b', 5000), gift('c', 1000), gift('d', 900)]);
   assert.equal(draw(board, 'x').winner.userId, draw(board, 'x').winner.userId);
   const N = 20000;
   const wins = { a: 0, b: 0, c: 0, d: 0 };
   for (let i = 0; i < N; i++) wins[draw(board, `seed-${i}`).winner.userId]++;
-  const total = 16 + 6 + 1;
+  const total = 16 + 5 + 1;
   assert.equal(wins.d, 0, 'viewer with no entries can never win');
   assert.ok(Math.abs(wins.a / N - 16 / total) < 0.02, `a=${wins.a / N}`);
-  assert.ok(Math.abs(wins.b / N - 6 / total) < 0.02, `b=${wins.b / N}`);
+  assert.ok(Math.abs(wins.b / N - 5 / total) < 0.02, `b=${wins.b / N}`);
   assert.ok(Math.abs(wins.c / N - 1 / total) < 0.02, `c=${wins.c / N}`);
 });
 
@@ -108,7 +122,13 @@ test('draw returns null when nobody has entries', () => {
 const start = { type: 'start', ts: 0 };
 const g = (userId, coins, ts, nickname = userId) => ({ type: 'gift', userId, nickname, coins, ts });
 
-test('queue: one 16,000 gift = 3 items in size order; sub-1,000 gifts add none', () => {
+test('queue: 12,000 gift = 3 rows (2 small + 1 large) with unique ids', () => {
+  const q = buildQueue([start, g('a', 12000, 1)]);
+  assert.deepEqual(q.map((i) => i.size), ['small', 'small', 'large']);
+  assert.equal(new Set(q.map((i) => i.id)).size, 3);
+});
+
+test('queue: 16,000 gift = small, medium, large; sub-1,000 gifts add none', () => {
   const q = buildQueue([start, g('a', 16000, 1), g('a', 900, 2)]);
   assert.deepEqual(q.map((i) => i.size), ['small', 'medium', 'large']);
   assert.ok(q.every((i) => i.userId === 'a' && !i.done));
@@ -136,11 +156,20 @@ test('queue: check and uncheck, last event wins; later events do not change ids'
   assert.equal(buildQueue(more)[0].id, first.id); // ids stable as the log grows
 });
 
-test('queue: negative adjust removes the latest unwritten ornament of that size for that viewer', () => {
+test('queue: checking one of two identical smalls only ticks that one', () => {
+  const log = [start, g('a', 2500, 1)];
+  const [s1, s2] = buildQueue(log);
+  const q = buildQueue([...log, { type: 'ornament_check', itemId: s2.id, done: true }]);
+  assert.deepEqual(q.map((i) => [i.id === s1.id, i.done]), [[true, false], [false, true]]);
+});
+
+test('queue: negative adjust removes the latest unwritten ornaments of that gift', () => {
   const log = [start, g('a', 1500, 1), g('a', 1500, 2), { type: 'adjust', userId: 'a', coins: -1500, ts: 3 }];
   const q = buildQueue(log);
   assert.equal(q.length, 1);
   assert.equal(q[0].ts, 1); // the newer one was cancelled
+  const big = buildQueue([start, g('a', 12000, 1), { type: 'adjust', userId: 'a', coins: -12000, ts: 2 }]);
+  assert.equal(big.length, 0);
 });
 
 test('queue: negative adjust never cancels an ornament that is already written', () => {

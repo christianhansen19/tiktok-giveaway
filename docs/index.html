@@ -124,13 +124,13 @@
 
   <section class="card">
     <h2>How you earn</h2>
-    <p class="muted" style="margin:0 0 8px">Ornaments are earned <b>per single gift</b>.</p>
+    <p class="muted" style="margin:0 0 8px">Every <b>single gift</b> is turned into ornaments, biggest first.</p>
     <div class="tiers" aria-label="Ornament tiers">
-      <div class="tier"><svg class="orn lit" width="34" height="40" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Small</b><span>1,000+ coin gift</span><em>1 entry</em></div>
-      <div class="tier"><svg class="orn lit" width="42" height="48" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Medium</b><span>5,000+ coin gift</span><em>5 entries</em></div>
-      <div class="tier"><svg class="orn lit" width="52" height="58" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Large</b><span>10,000+ coin gift</span><em>10 entries</em></div>
+      <div class="tier"><svg class="orn lit" width="34" height="40" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Small</b><span>per 1,000 coins</span><em>1 entry</em></div>
+      <div class="tier"><svg class="orn lit" width="42" height="48" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Medium</b><span>per 5,000 coins</span><em>5 entries</em></div>
+      <div class="tier"><svg class="orn lit" width="52" height="58" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Large</b><span>per 10,000 coins</span><em>10 entries</em></div>
     </div>
-    <p class="how"><b>Big gifts stack:</b> one 16,000-coin gift earns a small, a medium <i>and</i> a large (16 entries). Two separate 1,500-coin gifts earn 2 small ornaments. Gifts under 1,000 coins don’t earn an ornament on their own. A streak of the same gift counts as one gift at its total.</p>
+    <p class="how"><b>Example:</b> one 12,000-coin gift = 1 large + 2 small (12 entries). One 16,000-coin gift = 1 large + 1 medium + 1 small. Two separate 1,500-coin gifts = 2 small. Leftover coins under 1,000 and gifts under 1,000 don’t earn an ornament, and a streak of the same gift counts as one gift at its total.</p>
   </section>
 
   <section class="card find">
@@ -240,7 +240,7 @@
     // [name, gifts sent...] - ornaments come from each single gift, not the total.
     const sends = [['stargazer_kay', 16400, 2000], ['Zhane 🧚🏻‍♀️', 9800, 1500, 1500], ['el_mamon33', 6000, 1200], ['goatedfrfr', 1500, 1500, 1500],
       ['luna.loves.live', 5200], ['JJ', 1000, 1000], ['maddie_m', 1800], ['tiktok_tom', 1000], ['sunny', 700, 700, 700], ['cj_plays', 300, 300], ['ava', 120], ['the_real_deal', 30]];
-    const rw = (c) => ({ small: c >= 1000 ? 1 : 0, medium: c >= 5000 ? 1 : 0, large: c >= 10000 ? 1 : 0 });
+    const rw = (c) => { const large = Math.floor(c / 10000), medium = Math.floor((c % 10000) / 5000), small = Math.floor((c % 5000) / 1000); return { small, medium, large }; };
     const rows = sends.map(([nickname, ...gifts], i) => {
       const rewards = gifts.reduce((a, c) => { const r = rw(c); return { small: a.small + r.small, medium: a.medium + r.medium, large: a.large + r.large }; }, { small: 0, medium: 0, large: 0 });
       return { userId: 'u' + i, nickname, coins: gifts.reduce((a, b) => a + b, 0), rewards, entries: rewards.small + rewards.medium * 5 + rewards.large * 10, eligible: true };
