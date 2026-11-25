@@ -116,3 +116,35 @@ export function draw(board, seed) {
   }
   return { winner: pool[pool.length - 1], seed, pick, total };
 }
+
+// ORNAMENT QUEUE: one item per ornament, oldest first, for the current giveaway.
+// Items are derived from the event log, so nothing is stored twice:
+//  - each gift / positive manual adjust adds the ornaments that single gift earns
+//  - a negative manual adjust cancels the latest still-unwritten ornament of that size
+//    for that viewer (a gift counted by mistake disappears from the list)
+//  - `ornament_check` events mark an item written / un-written (last event wins)
+// Item ids are "<position in the full log>-<size>". The log is append-only, so ids never change.
+export function buildQueue(events) {
+  const startIdx = events.map((e) => e.type).lastIndexOf('start');
+  if (startIdx === -1) return [];
+  const items = [];
+  const done = new Map();
+  for (let i = startIdx + 1; i < events.length; i++) {
+    const e = events[i];
+    if (e.type === 'ornament_check') { done.set(e.itemId, !!e.done); continue; }
+    if (e.type !== 'gift' && e.type !== 'adjust') continue;
+    const r = rewards(Math.abs(e.coins));
+    for (const t of TIERS) {
+      if (!r[t.key]) continue;
+      if (e.coins >= 0) {
+        items.push({ id: `${i}-${t.key}`, userId: e.userId, nickname: e.nickname, size: t.key, coins: e.coins, ts: e.ts });
+      } else {
+        for (let j = items.length - 1; j >= 0; j--) {
+          const it = items[j];
+          if (it.userId === e.userId && it.size === t.key && !done.get(it.id)) { items.splice(j, 1); break; }
+        }
+      }
+    }
+  }
+  return items.map((it) => ({ ...it, done: done.get(it.id) === true }));
+}

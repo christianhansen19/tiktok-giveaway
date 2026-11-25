@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { TikTokLiveConnection, WebcastEvent, ControlEvent } from 'tiktok-live-connector';
-import { aggregate, draw, giftToEvent } from './logic.js';
+import { aggregate, buildQueue, draw, giftToEvent } from './logic.js';
 
 const TIKTOK_USERNAME = process.env.TIKTOK_USERNAME; // streamer's @handle, no "@"
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN; // required for admin endpoints
@@ -47,6 +47,11 @@ function append(e) {
 function giveawayEvents() {
   const startIdx = events.map((e) => e.type).lastIndexOf('start');
   return startIdx === -1 ? [] : events.slice(startIdx);
+}
+
+function queueSnapshot() {
+  const items = buildQueue(events);
+  return { items, pending: items.filter((i) => !i.done).length, done: items.filter((i) => i.done).length, now: Date.now() };
 }
 
 function snapshot() {
@@ -171,6 +176,14 @@ http.createServer(async (req, res) => {
     const ts = Date.now();
 
     if (action === 'check') return json(res, 200, { ok: true });
+    if (action === 'queue') return json(res, 200, queueSnapshot());
+    if (action === 'ornament') {
+      // Olivia ticks an ornament as written (done: true) or un-ticks it (done: false).
+      const item = buildQueue(events).find((i) => i.id === body.itemId);
+      if (!item) return json(res, 404, { error: 'that ornament is no longer in the queue' });
+      if (item.done !== !!body.done) append({ type: 'ornament_check', ts, itemId: item.id, done: !!body.done });
+      return json(res, 200, queueSnapshot());
+    }
     if (action === 'start') { append({ type: 'start', ts }); return json(res, 200, snapshot()); }
     if (action === 'stop') { append({ type: 'stop', ts }); return json(res, 200, snapshot()); }
     if (action === 'adjust') {

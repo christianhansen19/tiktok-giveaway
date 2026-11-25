@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rewards, entriesOf, aggregate, draw, giftToEvent } from '../server/logic.js';
+import { rewards, entriesOf, aggregate, draw, giftToEvent, buildQueue } from '../server/logic.js';
 
 const gift = (userId, coins, nickname = userId) => ({ type: 'gift', userId, nickname, coins });
 
@@ -102,4 +102,52 @@ test('draw is deterministic for a seed and matches entry share over many draws',
 
 test('draw returns null when nobody has entries', () => {
   assert.equal(draw(aggregate([gift('a', 500)]), 's'), null);
+});
+
+// ---- ornament queue ----
+const start = { type: 'start', ts: 0 };
+const g = (userId, coins, ts, nickname = userId) => ({ type: 'gift', userId, nickname, coins, ts });
+
+test('queue: one 16,000 gift = 3 items in size order; sub-1,000 gifts add none', () => {
+  const q = buildQueue([start, g('a', 16000, 1), g('a', 900, 2)]);
+  assert.deepEqual(q.map((i) => i.size), ['small', 'medium', 'large']);
+  assert.ok(q.every((i) => i.userId === 'a' && !i.done));
+});
+
+test('queue: two 1,500 gifts = 2 small items, oldest first', () => {
+  const q = buildQueue([start, g('a', 1500, 1), g('b', 1500, 2), g('a', 1500, 3)]);
+  assert.deepEqual(q.map((i) => [i.userId, i.ts]), [['a', 1], ['b', 2], ['a', 3]]);
+});
+
+test('queue: only items after the latest start', () => {
+  const q = buildQueue([start, g('a', 1500, 1), { type: 'stop', ts: 2 }, { type: 'start', ts: 3 }, g('b', 1500, 4)]);
+  assert.deepEqual(q.map((i) => i.userId), ['b']);
+  assert.deepEqual(buildQueue([g('a', 1500, 1)]), []); // no start yet
+});
+
+test('queue: check and uncheck, last event wins; later events do not change ids', () => {
+  const log = [start, g('a', 1500, 1), g('b', 1500, 2)];
+  const [first] = buildQueue(log);
+  const checked = [...log, { type: 'ornament_check', itemId: first.id, done: true }];
+  assert.deepEqual(buildQueue(checked).map((i) => i.done), [true, false]);
+  const undone = [...checked, { type: 'ornament_check', itemId: first.id, done: false }];
+  assert.deepEqual(buildQueue(undone).map((i) => i.done), [false, false]);
+  const more = [...checked, g('c', 5000, 9)];
+  assert.equal(buildQueue(more)[0].id, first.id); // ids stable as the log grows
+});
+
+test('queue: negative adjust removes the latest unwritten ornament of that size for that viewer', () => {
+  const log = [start, g('a', 1500, 1), g('a', 1500, 2), { type: 'adjust', userId: 'a', coins: -1500, ts: 3 }];
+  const q = buildQueue(log);
+  assert.equal(q.length, 1);
+  assert.equal(q[0].ts, 1); // the newer one was cancelled
+});
+
+test('queue: negative adjust never cancels an ornament that is already written', () => {
+  const base = [start, g('a', 1500, 1)];
+  const [it] = buildQueue(base);
+  const log = [...base, { type: 'ornament_check', itemId: it.id, done: true }, { type: 'adjust', userId: 'a', coins: -1500, ts: 3 }];
+  const q = buildQueue(log);
+  assert.equal(q.length, 1);
+  assert.equal(q[0].done, true);
 });

@@ -26,9 +26,32 @@
   .result { margin-top: 14px; padding: 14px; background: var(--gold); border: 2px solid var(--ink); border-radius: 12px; font-weight: 700; word-break: break-word; }
   .result[hidden], .hidden { display: none; }
   .hint { margin: 2px 0 0; font-size: .9rem; color: var(--muted); }
-  .owed-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--rose-l); font-weight: 600; }
-  .owed-row:first-child { border-top: 0; }
-  .owed-row span:last-child { text-align: right; color: var(--muted); white-space: nowrap; }
+  .size { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--ink); font: 800 .75rem/1.5 var(--sans); text-transform: uppercase; letter-spacing: .06em; }
+  .s-small { background: var(--blush); }
+  .s-medium { background: var(--rose-r); }
+  .s-large { background: var(--rose-deep); color: #fff; }
+  .next-card { margin-top: 14px; padding: 16px; border: 2px solid var(--ink); border-radius: 14px; background: var(--gold); text-align: center; }
+  .next-card.clear { background: var(--blush); }
+  .next-card .eyebrow { color: var(--ink); }
+  .next-name { margin: 8px 0 10px; font: 900 clamp(1.7rem, 9vw, 2.4rem)/1.1 var(--display); font-style: italic; word-break: break-word; }
+  .next-card .btn { width: 100%; margin-top: 14px; min-height: 56px; font-size: 1.1rem; }
+  .next-card p { margin: 6px 0 0; font-weight: 600; }
+  .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0 8px; }
+  .seg button { min-height: 44px; border: 2px solid var(--ink); border-radius: 12px; background: var(--paper); font: 800 .9rem var(--sans); cursor: pointer; }
+  .seg button.on { background: var(--ink); color: #fff; }
+  .qlist { list-style: none; margin: 0; padding: 0; }
+  .qrow { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--rose-l); }
+  .qrow:first-child { border-top: 0; }
+  .qrow.fresh { animation: fresh 2.5s ease-out; }
+  @keyframes fresh { 0%, 40% { background: var(--gold); } 100% { background: transparent; } }
+  .chk { flex: none; width: 48px; height: 48px; border: 2px solid var(--ink); border-radius: 12px; background: #fff; box-shadow: 2px 2px 0 var(--ink); cursor: pointer; font: 900 1.4rem/1 var(--sans); color: #fff; }
+  .chk:active { transform: translate(2px, 2px); box-shadow: none; }
+  .chk.on { background: var(--ok); }
+  .qinfo { min-width: 0; flex: 1; }
+  .qname { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qmeta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px; font-size: .8rem; font-weight: 600; color: var(--muted); }
+  .undo { flex: none; min-height: 44px; padding: 0 14px; border: 2px solid var(--ink); border-radius: 12px; background: var(--paper); font: 800 .85rem var(--sans); cursor: pointer; }
+  .qempty { padding: 14px 0; color: var(--muted); font-weight: 600; }
   .toast { position: sticky; bottom: 12px; padding: 12px 16px; border: 2px solid var(--ink); border-radius: 12px; background: var(--paper); box-shadow: var(--sticker); font-weight: 700; }
   .toast[hidden] { display: none; }
   .toast.err { background: #ffe3e8; }
@@ -64,9 +87,22 @@
       <p class="hint" style="margin-top:12px">Start begins a <b>new</b> giveaway and resets everyone to zero. Don't press it between streams. Just leave it running.</p>
     </section>
 
+    <section class="card" id="queueCard">
+      <div class="status-row">
+        <h2 style="margin:0">Ornament queue</h2>
+        <span class="pill" id="qPill"><span class="dot"></span><span id="qPillText">…</span></span>
+      </div>
+      <div id="next"></div>
+      <div class="seg" role="group" aria-label="Show ornaments">
+        <button id="tabTodo" class="on" type="button">To write <span id="nTodo">0</span></button>
+        <button id="tabDone" type="button">Written <span id="nDone">0</span></button>
+      </div>
+      <ul class="qlist" id="qlist"></ul>
+    </section>
+
     <section class="card">
       <h2>Pick the winner</h2>
-      <p class="hint">Stop the giveaway first. One winner, weighted by coins. The result is saved and can't be redone.</p>
+      <p class="hint">Stop the giveaway first. One winner, weighted by entries. The result is saved and can't be redone.</p>
       <div class="actions" style="grid-template-columns:1fr"><button class="btn" id="draw">🎁 Draw winner</button></div>
       <div class="result" id="drawOut" hidden></div>
     </section>
@@ -81,12 +117,6 @@
       <label for="note">Note (optional)</label>
       <input id="note" type="text" placeholder="e.g. missed Galaxy">
       <div class="actions" style="grid-template-columns:1fr"><button class="btn alt" id="adjust">Apply</button></div>
-    </section>
-
-    <section class="card">
-      <h2>Ornaments to ship</h2>
-      <p class="hint" id="owedSummary">Nobody yet.</p>
-      <div id="owed"></div>
     </section>
 
     <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
@@ -121,14 +151,6 @@
       $('pill').className = 'pill ' + (d.active ? 'live' : d.winner ? 'done' : '');
       $('coinsStat').textContent = `${fmt.format(d.totalCoins)} coins sent`;
       $('stats').textContent = `${d.viewers} supporters · ${fmt.format(d.totalEntries ?? 0)} entries` + (d.winner ? ` · Winner: ${d.winner.nickname}` : '');
-      const t = d.ornamentTotals ?? { small: 0, medium: 0, large: 0 };
-      $('owedSummary').textContent = (d.owed?.length)
-        ? `${t.small} small · ${t.medium} medium · ${t.large} large across ${d.owed.length} ${d.owed.length === 1 ? 'person' : 'people'}`
-        : 'Nobody has earned an ornament yet.';
-      $('owed').innerHTML = (d.owed ?? []).map((o) => {
-        const bits = [o.small && `${o.small} small`, o.medium && `${o.medium} medium`, o.large && `${o.large} large`].filter(Boolean).join(', ');
-        return `<div class="owed-row"><span>${String(o.nickname ?? o.userId).replace(/</g, '&lt;')}</span><span>${bits}</span></div>`;
-      }).join('');
       $('start').disabled = false; $('stop').disabled = !d.active;
       $('draw').disabled = d.active || !(d.totalEntries > 0);
       const cur = $('uid').value;
@@ -148,11 +170,95 @@
     try { await fn(); await refresh(); } catch (e) { toast(e.message, 'err'); }
   }
 
+  // ---------- Ornament queue ----------
+  let queue = { items: [], pending: 0, done: 0, now: Date.now() };
+  let qTab = 'todo', qLoaded = false;
+  const known = new Set(), fresh = new Set();
+  const SIZE = { small: 'Small', medium: 'Medium', large: 'Large' };
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  function ago(ts) {
+    const m = Math.max(0, Math.round((Date.now() - ts) / 60000));
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    return h < 24 ? `${h}h ago` : `${Math.floor(h / 24)}d ago`;
+  }
+  const label = (it) => esc(it.nickname ?? it.userId);
+  const chip = (it) => `<span class="size s-${it.size}">${SIZE[it.size]}</span>`;
+  const agoTag = (it) => `<span class="ago" data-ts="${it.ts}">${ago(it.ts)}</span>`;
+  const meta = (it) => `${chip(it)}<span>${fmt.format(it.coins)}-coin gift · ${agoTag(it)}</span>`;
+
+  let lastSig = '';
+  function renderQueue() {
+    // Skip the redraw when nothing visible changed. Re-rendering every poll would replace the
+    // buttons under her finger and could swallow a tap.
+    const sig = qTab + '|' + queue.items.map((i) => i.id + (i.done ? '1' : '0')).join(',');
+    if (sig === lastSig) return;
+    lastSig = sig;
+    const pending = queue.items.filter((i) => !i.done);
+    const done = queue.items.filter((i) => i.done);
+    $('nTodo').textContent = pending.length;
+    $('nDone').textContent = done.length;
+    $('tabTodo').classList.toggle('on', qTab === 'todo');
+    $('tabDone').classList.toggle('on', qTab === 'done');
+    $('qPill').className = 'pill ' + (pending.length ? 'live' : 'done');
+    $('qPillText').textContent = pending.length ? `${pending.length} to write` : 'All caught up';
+    document.title = (pending.length ? `(${pending.length}) ` : '') + 'Giveaway Admin';
+
+    const next = pending[0];
+    $('next').innerHTML = next
+      ? `<div class="next-card"><span class="eyebrow">Write next</span><div class="next-name">${label(next)}</div>${chip(next)}<p>${fmt.format(next.coins)}-coin gift · ${agoTag(next)}</p><button class="btn" data-act="done" data-id="${next.id}">✓ Written</button></div>`
+      : `<div class="next-card clear"><span class="eyebrow">Write next</span><div class="next-name">All caught up 🎉</div><p>${queue.items.length ? 'Every ornament so far has been written.' : 'Ornaments appear here automatically when someone sends a gift of 1,000+ coins.'}</p></div>`;
+
+    const rows = qTab === 'todo' ? pending.slice(1) : [...done].reverse();
+    $('qlist').innerHTML = rows.length
+      ? rows.map((it) => qTab === 'todo'
+          ? `<li class="qrow${fresh.has(it.id) ? ' fresh' : ''}"><button class="chk" data-act="done" data-id="${it.id}" aria-label="Mark ${label(it)} ${SIZE[it.size]} written"></button><div class="qinfo"><div class="qname">${label(it)}</div><div class="qmeta">${meta(it)}</div></div></li>`
+          : `<li class="qrow"><button class="chk on" disabled aria-hidden="true">✓</button><div class="qinfo"><div class="qname">${label(it)}</div><div class="qmeta">${meta(it)}</div></div><button class="undo" data-act="undo" data-id="${it.id}">Undo</button></li>`).join('')
+      : `<li class="qempty">${qTab === 'todo' ? (pending.length ? 'Nobody else waiting.' : '') : 'Nothing written yet.'}</li>`;
+  }
+
+  function refreshAgo() { document.querySelectorAll('#queueCard .ago').forEach((el) => { el.textContent = ago(Number(el.dataset.ts)); }); }
+
+  function applyQueue(q) {
+    queue = q;
+    for (const it of q.items) {
+      if (qLoaded && !known.has(it.id)) { fresh.add(it.id); setTimeout(() => { fresh.delete(it.id); }, 4000); }
+      known.add(it.id);
+    }
+    qLoaded = true;
+    renderQueue();
+  }
+
+  async function loadQueue() {
+    if (document.hidden || !pw) return;
+    try { applyQueue(await call('queue')); } catch { /* keep showing the last list */ }
+  }
+
+  async function setDone(id, done) {
+    const it = queue.items.find((i) => i.id === id);
+    if (!it || it.done === done) return;
+    it.done = done; renderQueue(); // optimistic
+    try { applyQueue(await call('ornament', { itemId: id, done })); }
+    catch (e) { it.done = !done; renderQueue(); toast(e.message, 'err'); loadQueue(); }
+  }
+
+  $('queueCard').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]');
+    if (b) return setDone(b.dataset.id, b.dataset.act === 'done');
+    if (e.target.closest('#tabTodo')) { qTab = 'todo'; renderQueue(); }
+    if (e.target.closest('#tabDone')) { qTab = 'done'; renderQueue(); }
+  });
+  document.addEventListener('visibilitychange', loadQueue);
+
   async function enter() {
     $('login').classList.add('hidden');
     $('panel').classList.remove('hidden');
-    await refresh();
+    await Promise.all([refresh(), loadQueue()]);
     setInterval(refresh, 7000);
+    setInterval(loadQueue, 4000);
+    setInterval(refreshAgo, 30000);
   }
 
   $('signin').onclick = async () => {
@@ -170,7 +276,9 @@
   $('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('signin').click(); });
 
   $('start').onclick = () => {
-    if (!confirm('Start a NEW giveaway? Everyone’s coins reset to zero.')) return;
+    const n = queue.items.filter((i) => !i.done).length;
+    const warn = n ? `\n\n⚠️ ${n} ornament${n === 1 ? ' is' : 's are'} still NOT written. They will disappear from the queue (the saved log keeps them).` : '';
+    if (!confirm('Start a NEW giveaway? Everyone’s coins reset to zero.' + warn)) return;
     run(async () => { await call('start'); $('drawOut').hidden = true; toast('Giveaway started.', 'ok'); });
   };
   $('stop').onclick = () => run(async () => { await call('stop'); toast('Giveaway stopped.', 'ok'); });

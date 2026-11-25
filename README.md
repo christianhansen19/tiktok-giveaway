@@ -18,6 +18,9 @@ curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -d '{"userId":"123","coins"
 ```
 Gifts only count between `start` and `stop`. The draw seed is returned and stored so the result can be re-verified.
 
+## Ornament queue (admin page)
+Every ornament earned (one per ornament, oldest first) appears in the admin page's **Ornament queue**, so Olivia can write each name and tick it off. Ticks are saved in the server log, so they survive restarts and show on every device. Pressing Start for a new giveaway warns if ornaments are still unwritten. Endpoints: `POST /admin/queue` and `POST /admin/ornament {itemId, done}` (password required).
+
 ## Leaderboard page
 `docs/index.html` is static. Set `API` near the bottom to your server URL, then enable GitHub Pages on the `/docs` folder.
 
