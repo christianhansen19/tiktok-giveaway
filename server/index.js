@@ -77,22 +77,48 @@ function snapshot() {
 }
 
 // ---- TikTok listener ----
+// Shared status, shown on the admin page via /health.
+const tiktok = { username: TIKTOK_USERNAME ?? null, connected: false, connectedSince: 0, lastEventAt: 0 };
+
 if (TIKTOK_USERNAME) {
-  // Polite reconnecting so TikTok doesn't flag us:
-  // - she's offline (connect fails): check about every OFFLINE_CHECK_SEC (default 90s) +/- 25% jitter
-  // - dropped mid-stream (was connected): one quick retry after 10s, then back to the slow check
+  // Reconnect rules (polite to TikTok, but never stuck on an old stream):
+  // - she's offline: check about every OFFLINE_CHECK_SEC (default 90s) +/- 25% jitter
+  // - the connection drops mid-stream: one quick retry after 10s, then the slow check
+  // - the stream ends: drop it and go back to the slow check, which finds her NEXT stream
+  // - the connection goes quiet (no events for STALE_SEC, default 180s) while "connected":
+  //   treat it as dead (e.g. stuck on a stream that already ended) and reconnect
   const OFFLINE_CHECK_MS = Number(process.env.OFFLINE_CHECK_SEC ?? 90) * 1000;
+  const STALE_MS = Number(process.env.STALE_SEC ?? 180) * 1000;
+  const CONNECT_TIMEOUT_MS = 45_000;
   let retryTimer = null;
-  let wasConnected = false;
+  let current = null;
+
+  const slowDelay = () => OFFLINE_CHECK_MS * (0.75 + Math.random() * 0.5);
   const scheduleRetry = (ms) => {
-    if (retryTimer) return; // never stack timers (DISCONNECTED and a failed connect can both fire)
+    if (retryTimer) return; // never stack timers
     retryTimer = setTimeout(() => { retryTimer = null; connect(); }, ms);
   };
-  const slowDelay = () => OFFLINE_CHECK_MS * (0.75 + Math.random() * 0.5);
+  function dropConnection(reason, retryMs) {
+    const old = current;
+    current = null;
+    tiktok.connected = false;
+    if (old) { try { Promise.resolve(old.disconnect()).catch(() => {}); } catch {} }
+    const ms = retryMs ?? slowDelay();
+    console.log(`${reason}; checking again in ${Math.round(ms / 1000)}s`);
+    scheduleRetry(ms);
+  }
 
   const connect = () => {
     const conn = new TikTokLiveConnection(TIKTOK_USERNAME, {});
+    current = conn;
+    const alive = () => { tiktok.lastEventAt = Date.now(); };
+    // Any of these counts as proof the connection is alive (viewer-count updates arrive every few seconds).
+    for (const ev of [WebcastEvent.ROOM_USER, WebcastEvent.CHAT, WebcastEvent.MEMBER, WebcastEvent.LIKE, WebcastEvent.SOCIAL]) {
+      conn.on(ev, () => { if (conn === current) alive(); });
+    }
     conn.on(WebcastEvent.GIFT, (data) => {
+      if (conn !== current) return;
+      alive();
       const e = giftToEvent(data);
       // Log every gift message (counted or not) so problems are visible in Railway logs.
       try {
@@ -107,7 +133,6 @@ if (TIKTOK_USERNAME) {
           diamondCount: data?.gift?.diamondCount ?? data?.giftDetails?.diamondCount ?? data?.diamondCount,
           repeatCount: data?.repeatCount,
           repeatEnd: data?.repeatEnd,
-          keys: Object.keys(data ?? {}).slice(0, 25),
         }));
       } catch {}
       if (!currentState().active) return;
@@ -117,27 +142,31 @@ if (TIKTOK_USERNAME) {
       append(e);
       console.log(`+${e.coins} coins from ${e.nickname} (${e.giftName})`);
     });
+    conn.on(WebcastEvent.STREAM_END, () => { if (conn === current) dropConnection('Stream ended'); });
     conn.on(ControlEvent.DISCONNECTED, () => {
-      if (wasConnected) {
-        wasConnected = false;
-        console.log('Disconnected mid-stream, one quick retry in 10s');
-        scheduleRetry(10_000);
-      } else {
-        const ms = slowDelay();
-        console.log(`Disconnected, checking again in ${Math.round(ms / 1000)}s`);
-        scheduleRetry(ms);
-      }
+      if (conn !== current) return;
+      dropConnection('Disconnected mid-stream', tiktok.connected ? 10_000 : undefined);
     });
-    conn.on(ControlEvent.ERROR, (err) => console.error('TikTok error:', err?.message ?? err));
-    conn.connect().then(
-      () => { wasConnected = true; console.log(`Connected to @${TIKTOK_USERNAME}'s LIVE`); },
-      (err) => {
-        const ms = slowDelay();
-        console.log(`Not connected (offline?): ${err?.message ?? err}. Checking again in ${Math.round(ms / 1000)}s`);
-        scheduleRetry(ms);
+    conn.on(ControlEvent.ERROR, (err) => console.error('TikTok error:', String(err?.message ?? err).slice(0, 160)));
+
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('connect timed out')), CONNECT_TIMEOUT_MS));
+    Promise.race([conn.connect(), timeout]).then(
+      () => {
+        if (conn !== current) return;
+        tiktok.connected = true; tiktok.connectedSince = Date.now(); alive();
+        console.log(`Connected to @${TIKTOK_USERNAME}'s LIVE`);
       },
+      (err) => { if (conn === current) dropConnection(`Not connected (offline?): ${err?.message ?? err}`); },
     );
   };
+
+  // Watchdog: a connection that has gone silent is treated as dead and replaced.
+  setInterval(() => {
+    if (tiktok.connected && Date.now() - tiktok.lastEventAt > STALE_MS) {
+      dropConnection(`No activity for ${Math.round(STALE_MS / 1000)}s, reconnecting`, 5_000);
+    }
+  }, 30_000);
+
   connect();
 } else {
   console.warn('TIKTOK_USERNAME not set: running API only.');
@@ -164,7 +193,7 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
 
   if (req.method === 'GET' && url.pathname === '/leaderboard') return json(res, 200, snapshot());
-  if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true });
+  if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, tiktok, now: Date.now() });
 
   if (req.method === 'POST' && url.pathname.startsWith('/admin/')) {
     if (req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) {
