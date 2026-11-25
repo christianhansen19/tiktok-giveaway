@@ -1,0 +1,14 @@
+{
+  "name": "tiktok-giveaway",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "tiktok-live-connector": "^2.0.0"
+  },
+  "engines": { "node": ">=20" }
+}

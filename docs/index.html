@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Giveaway Leaderboard</title>
+<style>
+  :root { --bg:#fffaf5; --fg:#1f2430; --muted:#6b7280; --card:#ffffff; --line:#eadfd3; --accent:#c8102e; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg:#14171f; --fg:#f2f2f2; --muted:#9aa3b2; --card:#1d212b; --line:#2b3140; --accent:#ff5470; }
+  }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { margin:0 0 4px; font-size:1.8rem; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  .stats { display:flex; gap:12px; flex-wrap:wrap; margin-bottom:20px; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 16px; }
+  .stat b { display:block; font-size:1.3rem; }
+  .rules { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 16px; margin-bottom:20px; }
+  .winner { background:var(--accent); color:#fff; border-radius:12px; padding:16px; margin-bottom:20px; font-weight:600; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  th, td { padding:10px 12px; text-align:left; border-bottom:1px solid var(--line); }
+  th { font-size:.8rem; text-transform:uppercase; color:var(--muted); }
+  td.n { text-align:right; font-variant-numeric:tabular-nums; }
+  .badge { display:inline-block; font-size:.75rem; padding:1px 8px; border-radius:999px; border:1px solid var(--accent); color:var(--accent); margin-right:4px; }
+  .err { color:var(--accent); }
+  @media (max-width:520px) { .hide-sm { display:none; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>🎄 Giveaway Leaderboard</h1>
+  <p class="sub" id="status">Loading…</p>
+  <div id="winner"></div>
+  <div class="stats">
+    <div class="stat"><span>Total coins</span><b id="total">–</b></div>
+    <div class="stat"><span>Supporters</span><b id="viewers">–</b></div>
+  </div>
+  <div class="rules">
+    <b>How it works:</b> your coins add up over the whole giveaway.
+    1,000+ = small ornament · 5,000+ = medium · 10,000+ = large (they stack!).
+    One winner is drawn for the $100 gift card — your odds are your share of all coins.
+  </div>
+  <table>
+    <thead><tr><th>#</th><th>Viewer</th><th class="n">Coins</th><th class="hide-sm">Ornaments</th><th class="n">Win odds</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</main>
+<script>
+  // Set this to your deployed API URL (Railway), no trailing slash.
+  const API = 'https://YOUR-APP.up.railway.app';
+  const fmt = new Intl.NumberFormat();
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+  async function refresh() {
+    try {
+      const d = await (await fetch(API + '/leaderboard', { cache: 'no-store' })).json();
+      $('status').textContent = d.active ? 'LIVE – updating automatically' : 'Giveaway not running';
+      $('status').className = 'sub';
+      $('total').textContent = fmt.format(d.totalCoins);
+      $('viewers').textContent = fmt.format(d.viewers);
+      $('winner').innerHTML = d.winner
+        ? `<div class="winner">🏆 Winner: ${esc(d.winner.nickname)} (${fmt.format(d.winner.coins)} coins)</div>` : '';
+      $('rows').innerHTML = d.board.map((r) => {
+        const b = [r.rewards.large && 'Large', r.rewards.medium && 'Medium', r.rewards.small && 'Small']
+          .filter(Boolean).map((x) => `<span class="badge">${x}</span>`).join('');
+        const odds = r.eligible ? (r.odds * 100).toFixed(1) + '%' : '–';
+        return `<tr><td>${r.rank}</td><td>${esc(r.nickname)}</td><td class="n">${fmt.format(r.coins)}</td><td class="hide-sm">${b || '–'}</td><td class="n">${odds}</td></tr>`;
+      }).join('');
+    } catch (e) {
+      $('status').textContent = 'Can’t reach the server right now – retrying…';
+      $('status').className = 'sub err';
+    }
+  }
+  refresh();
+  setInterval(refresh, 7000);
+</script>
+</body>
+</html>
