@@ -64,6 +64,18 @@ function snapshot() {
 
 // ---- TikTok listener ----
 if (TIKTOK_USERNAME) {
+  // Polite reconnecting so TikTok doesn't flag us:
+  // - she's offline (connect fails): check about every OFFLINE_CHECK_SEC (default 90s) +/- 25% jitter
+  // - dropped mid-stream (was connected): one quick retry after 10s, then back to the slow check
+  const OFFLINE_CHECK_MS = Number(process.env.OFFLINE_CHECK_SEC ?? 90) * 1000;
+  let retryTimer = null;
+  let wasConnected = false;
+  const scheduleRetry = (ms) => {
+    if (retryTimer) return; // never stack timers (DISCONNECTED and a failed connect can both fire)
+    retryTimer = setTimeout(() => { retryTimer = null; connect(); }, ms);
+  };
+  const slowDelay = () => OFFLINE_CHECK_MS * (0.75 + Math.random() * 0.5);
+
   const connect = () => {
     const conn = new TikTokLiveConnection(TIKTOK_USERNAME, {});
     conn.on(WebcastEvent.GIFT, (data) => {
@@ -76,15 +88,23 @@ if (TIKTOK_USERNAME) {
       console.log(`+${e.coins} coins from ${e.nickname} (${e.giftName})`);
     });
     conn.on(ControlEvent.DISCONNECTED, () => {
-      console.log('Disconnected, retrying in 10s');
-      setTimeout(connect, 10_000);
+      if (wasConnected) {
+        wasConnected = false;
+        console.log('Disconnected mid-stream, one quick retry in 10s');
+        scheduleRetry(10_000);
+      } else {
+        const ms = slowDelay();
+        console.log(`Disconnected, checking again in ${Math.round(ms / 1000)}s`);
+        scheduleRetry(ms);
+      }
     });
     conn.on(ControlEvent.ERROR, (err) => console.error('TikTok error:', err?.message ?? err));
     conn.connect().then(
-      () => console.log(`Connected to @${TIKTOK_USERNAME}'s LIVE`),
+      () => { wasConnected = true; console.log(`Connected to @${TIKTOK_USERNAME}'s LIVE`); },
       (err) => {
-        console.error('Could not connect (is she live?):', err?.message ?? err);
-        setTimeout(connect, 15_000);
+        const ms = slowDelay();
+        console.log(`Not connected (offline?): ${err?.message ?? err}. Checking again in ${Math.round(ms / 1000)}s`);
+        scheduleRetry(ms);
       },
     );
   };
