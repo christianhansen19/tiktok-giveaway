@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Gift Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&family=Mrs+Saint+Delafield&family=Shrikhand&display=swap" rel="stylesheet">
+<style>
+  /* OBS Browser Source: the page must be fully transparent except for the popup. */
+  :root {
+    --rose-deep: #b5547f; --rose-r: #d9a8bf; --blush: #f6e9ee; --paper: #fbf7f8; --ink: #14090f;
+    --muted: #6b5560; --gold: #e8b84a;
+    --display: "Shrikhand", "Arial Black", Georgia, serif;
+    --script: "Mrs Saint Delafield", "Snell Roundhand", cursive;
+    --sans: "Inter", system-ui, sans-serif;
+    --scale: 1;
+  }
+  html, body { margin: 0; background: transparent; overflow: hidden; width: 100vw; height: 100vh; }
+  body { font-family: var(--sans); color: var(--ink); }
+  [hidden] { display: none !important; }
+
+  .slot { position: fixed; width: calc(560px * var(--scale)); transform-origin: center; }
+  .slot.bottom-left { left: 48px; bottom: 48px; }
+  .slot.bottom-right { right: 48px; bottom: 48px; }
+  .slot.top-left { left: 48px; top: 48px; }
+  .slot.top-right { right: 48px; top: 48px; }
+  .slot.center { left: 50%; top: 50%; margin-left: calc(-280px * var(--scale)); margin-top: calc(-110px * var(--scale)); }
+
+  .card {
+    position: relative; display: grid; grid-template-columns: auto 1fr; gap: calc(18px * var(--scale)); align-items: center;
+    padding: calc(20px * var(--scale)) calc(24px * var(--scale)) calc(24px * var(--scale));
+    background: var(--paper); border: calc(3px * var(--scale)) solid var(--ink); border-radius: calc(24px * var(--scale));
+    box-shadow: calc(7px * var(--scale)) calc(7px * var(--scale)) 0 var(--ink);
+    font-size: calc(16px * var(--scale)); overflow: hidden;
+  }
+  .card.large { background: var(--gold); }
+  .orn { width: calc(84px * var(--scale)); height: auto; overflow: visible; }
+  .large .orn { width: calc(104px * var(--scale)); }
+  .orn .fill { fill: var(--rose-deep); stroke: var(--ink); stroke-width: 1.5; }
+  .orn .cap { fill: var(--gold); stroke: var(--ink); stroke-width: 1.5; }
+  .large .orn .cap { fill: var(--paper); }
+  .orn .shine { fill: #fff; opacity: .45; }
+  .txt { min-width: 0; }
+  .ty { font-family: var(--script); font-size: 2.6em; line-height: .8; }
+  .name { font: 400 2.1em/1.08 var(--display); margin: .12em 0 .18em; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; }
+  .gift { font-weight: 700; color: var(--muted); font-size: 1.05em; }
+  .large .gift { color: var(--ink); }
+  .chips { display: flex; flex-wrap: wrap; gap: .45em; margin-top: .6em; }
+  .chip { padding: .28em .8em; border: .15em solid var(--ink); border-radius: 999px; font-weight: 800; background: var(--blush); }
+  .chip.dark { background: var(--ink); color: #fff; }
+  .large .chip { background: var(--paper); }
+  .large .chip.dark { background: var(--ink); }
+  .foot { margin-top: .55em; font-weight: 700; font-size: .95em; color: var(--muted); }
+  .large .foot { color: var(--ink); }
+  .tag { position: absolute; top: .7em; right: .9em; padding: .1em .55em; border-radius: 6px; background: var(--ink); color: #fff; font: 800 .75em/1.6 var(--sans); letter-spacing: .1em; }
+  .timer { position: absolute; left: 0; bottom: 0; height: calc(6px * var(--scale)); background: var(--ink); width: 100%; transform-origin: left; }
+
+  /* motion */
+  .slot.in { animation: slideIn .7s cubic-bezier(.2, 1.4, .4, 1) both; }
+  .slot.out { animation: slideOut .5s ease-in both; }
+  .slot.left.in { --from: -120%; } .slot.right.in, .slot.right.out { --from: 120%; }
+  .slot.left.out { --from: -120%; }
+  .slot.center.in, .slot.center.out { --from: 0; }
+  @keyframes slideIn { from { transform: translateX(var(--from, -120%)) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes slideOut { from { transform: none; opacity: 1; } to { transform: translateX(var(--from, -120%)) scale(.9); opacity: 0; } }
+  .slot.center.in { animation-name: popIn; } .slot.center.out { animation-name: popOut; }
+  @keyframes popIn { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes popOut { to { transform: scale(.8); opacity: 0; } }
+  .timer.run { animation: drain linear both; }
+  @keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+  @media (prefers-reduced-motion: reduce) {
+    .slot.in { animation: fadeIn .3s both !important; } .slot.out { animation: fadeOut .3s both !important; }
+    @keyframes fadeIn { from { opacity: 0; } } @keyframes fadeOut { to { opacity: 0; } }
+  }
+
+  #confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; }
+  .debug { position: fixed; left: 8px; top: 8px; padding: 4px 8px; border-radius: 6px; background: rgba(20, 9, 15, .8); color: #fff; font: 700 12px var(--sans); }
+</style>
+</head>
+<body>
+<canvas id="confetti" aria-hidden="true"></canvas>
+<div class="slot" id="slot" hidden aria-live="polite"></div>
+<div class="debug" id="debug" hidden></div>
+
+<script>
+  const API = 'https://giveaway-api-production-d2ee64f6.up.railway.app';
+  const params = new URLSearchParams(location.search);
+  const POS = ['bottom-left', 'bottom-right', 'top-left', 'top-right', 'center'].includes(params.get('pos')) ? params.get('pos') : 'bottom-left';
+  const SCALE = Math.min(Math.max(Number(params.get('scale')) || 1, 0.5), 3);
+  const HOLD = Math.min(Math.max(Number(params.get('hold')) || 6, 2), 30) * 1000;
+  const TEST = params.has('test');
+  const DEBUG = params.has('debug');
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fmt = new Intl.NumberFormat();
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  document.documentElement.style.setProperty('--scale', SCALE);
+  const side = POS.includes('left') ? 'left' : POS.includes('right') ? 'right' : 'center';
+  $('slot').className = `slot ${POS} ${side}`;
+
+  // ---------- popup queue: one at a time, never overlapping ----------
+  const queue = [];
+  const seen = new Set();
+  let showing = false;
+  function enqueue(p) {
+    if (!p || seen.has(p.id)) return;
+    seen.add(p.id);
+    queue.push(p);
+    if (!showing) next();
+  }
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const ornSvg = '<svg class="orn" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/><circle class="shine" cx="8.5" cy="13.5" r="2.2"/></svg>';
+
+  function cardHTML(p) {
+    const large = p.size === 'large';
+    const gift = p.giftName ? `sent ${esc(p.giftName)} · ${fmt.format(p.coins)} coins` : `sent ${fmt.format(p.coins)} coins`;
+    const foot = p.rank ? `Now ${fmt.format(p.totalEntries)} ${p.totalEntries === 1 ? 'entry' : 'entries'} · #${p.rank} on the board` : `Now ${fmt.format(p.totalEntries)} entries`;
+    return `<div class="card ${large ? 'large' : 'medium'}">
+      ${p.kind === 'test' ? '<span class="tag">TEST</span>' : ''}
+      ${ornSvg}
+      <div class="txt">
+        <div class="ty">thank you</div>
+        <div class="name">${esc(p.nickname)}</div>
+        <div class="gift">${gift}</div>
+        <div class="chips"><span class="chip">${large ? 'Large' : 'Medium'} ornament</span><span class="chip dark">+${fmt.format(p.entriesGained)} ${p.entriesGained === 1 ? 'entry' : 'entries'}</span></div>
+        <div class="foot">${foot}</div>
+      </div>
+      <div class="timer" id="timer"></div>
+    </div>`;
+  }
+
+  async function next() {
+    const p = queue.shift();
+    if (!p) { showing = false; return; }
+    showing = true;
+    const slot = $('slot');
+    const hold = queue.length >= 3 ? Math.min(HOLD, 3500) : HOLD; // speed up when a burst is waiting
+    slot.innerHTML = cardHTML(p);
+    slot.hidden = false;
+    slot.classList.remove('out'); void slot.offsetWidth; slot.classList.add('in');
+    const timer = $('timer');
+    timer.style.animationDuration = `${hold}ms`; timer.classList.add('run');
+    if (p.size === 'large') setTimeout(() => burst(slot), reduceMotion ? 0 : 350);
+    await sleep(hold);
+    slot.classList.remove('in'); slot.classList.add('out');
+    await sleep(reduceMotion ? 300 : 500);
+    slot.hidden = true;
+    await sleep(250);
+    next();
+  }
+
+  // ---------- small confetti burst for large ornaments ----------
+  const cv = $('confetti'), cx = cv.getContext('2d');
+  let parts = [], animating = false;
+  const COLORS = ['#b5547f', '#e8b84a', '#fbf7f8', '#d9a8bf', '#8e3b62'];
+  function burst(el) {
+    const d = Math.min(devicePixelRatio || 1, 2);
+    cv.width = innerWidth * d; cv.height = innerHeight * d; cx.setTransform(d, 0, 0, d, 0, 0);
+    const r = el.getBoundingClientRect();
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    for (let i = 0; i < (reduceMotion ? 20 : 70); i++) {
+      const a = Math.random() * Math.PI * 2, v = (5 + Math.random() * 9) * SCALE;
+      parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 5 * SCALE, rot: Math.random() * 6, vr: (Math.random() - .5) * .3,
+        s: (5 + Math.random() * 6) * SCALE, c: COLORS[(Math.random() * COLORS.length) | 0], t: Math.random() < .5 ? 'orn' : 'star', life: 0 });
+    }
+    if (!animating) { animating = true; requestAnimationFrame(frame); }
+  }
+  function star(r) { cx.beginPath(); for (let i = 0; i < 10; i++) { const rad = i % 2 ? r * .45 : r, a = i * Math.PI / 5 - Math.PI / 2; cx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad); } cx.closePath(); }
+  function frame() {
+    cx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const p of parts) {
+      p.vy += .3 * SCALE; p.vx *= .98; p.x += p.vx; p.y += p.vy; p.rot += p.vr; p.life++;
+      cx.save(); cx.translate(p.x, p.y); cx.rotate(p.rot); cx.fillStyle = p.c; cx.strokeStyle = '#14090f'; cx.lineWidth = 1.5;
+      if (p.t === 'orn') { cx.beginPath(); cx.arc(0, 0, p.s, 0, 6.28); cx.fill(); cx.stroke(); cx.fillStyle = '#e8b84a'; cx.fillRect(-p.s * .35, -p.s * 1.4, p.s * .7, p.s * .5); }
+      else { star(p.s); cx.fill(); cx.stroke(); }
+      cx.restore();
+    }
+    parts = parts.filter((p) => p.y < innerHeight + 40 && p.life < 240);
+    if (parts.length) requestAnimationFrame(frame); else { animating = false; cx.clearRect(0, 0, innerWidth, innerHeight); }
+  }
+
+  // ---------- live connection ----------
+  let lastTs = Date.now(); // only show gifts from now on, never a backlog on first load
+  function status(t) { if (DEBUG) { $('debug').hidden = false; $('debug').textContent = t; } }
+  async function catchUp() {
+    try {
+      const r = await (await fetch(`${API}/overlay/recent?since=${lastTs}`, { cache: 'no-store' })).json();
+      for (const p of r.popups) { lastTs = Math.max(lastTs, p.ts); enqueue(p); }
+    } catch {}
+  }
+  function connect() {
+    const es = new EventSource(`${API}/overlay/stream`);
+    es.addEventListener('open', () => { status('connected'); catchUp(); });
+    es.addEventListener('popup', (ev) => {
+      try { const p = JSON.parse(ev.data); lastTs = Math.max(lastTs, p.ts); enqueue(p); } catch {}
+    });
+    es.addEventListener('error', () => status('reconnecting…')); // EventSource retries on its own
+  }
+
+  if (TEST) {
+    // Sample popups so the overlay can be positioned in OBS without anyone gifting.
+    const samples = [
+      { kind: 'test', nickname: 'Test Viewer', coins: 1500, giftName: 'Galaxy', size: 'medium', entriesGained: 1, totalEntries: 3, rank: 4 },
+      { kind: 'test', nickname: 'Big Gifter ✨', coins: 15000, giftName: 'Lion', size: 'large', entriesGained: 15, totalEntries: 27, rank: 1 },
+    ];
+    let n = 0;
+    const fire = () => { const s = samples[n++ % samples.length]; enqueue({ ...s, id: `test-${n}`, ts: Date.now() }); };
+    fire(); setInterval(() => { if (!showing) fire(); }, 2500);
+  } else {
+    connect();
+  }
+</script>
+</body>
+</html>

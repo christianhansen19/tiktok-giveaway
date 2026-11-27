@@ -114,6 +114,23 @@
       <p class="hint" style="margin-top:10px">Want to rehearse first? The draw show has a practice run that doesn't pick anyone.</p>
     </section>
 
+    <section class="card" id="obsCard">
+      <h2>OBS gift popups</h2>
+      <p class="hint">A thank-you card pops up on stream for every qualifying gift (1,000+ coins). In OBS: <b>Sources → + → Browser</b>, paste this URL, set width <b>1920</b> and height <b>1080</b>. The background is already transparent.</p>
+      <label for="obsPos">Where on screen</label>
+      <select id="obsPos">
+        <option value="bottom-left">Bottom left</option>
+        <option value="bottom-right">Bottom right</option>
+        <option value="top-left">Top left</option>
+        <option value="top-right">Top right</option>
+        <option value="center">Center</option>
+      </select>
+      <label for="obsUrl">Browser Source URL</label>
+      <div style="display:flex;gap:8px"><input id="obsUrl" type="text" readonly><button class="btn alt" id="obsCopy" type="button" style="flex:none">Copy</button></div>
+      <div class="actions"><button class="btn alt" id="testMed" type="button">Test popup: medium</button><button class="btn alt" id="testLarge" type="button">Test popup: large</button></div>
+      <p class="hint" id="obsStatus" style="margin-top:10px">Test popups show in OBS with a TEST tag and never touch the giveaway.</p>
+    </section>
+
     <section class="card">
       <h2>Add or remove a gift</h2>
       <p class="hint">For a gift the tracker missed or counted twice. Enter the value of <b>one gift</b>: it adds that gift's ornaments and entries. Use a minus sign to remove a gift that was counted by mistake.</p>
@@ -348,6 +365,28 @@
     toast(coins > 0 ? `Added a ${fmt.format(coins)}-coin gift for ${nickname}.` : `Removed a ${fmt.format(-coins)}-coin gift from ${nickname}.`, 'ok');
     loadViewers(); loadQueue();
   });
+
+  // ---------- OBS overlay ----------
+  function obsUrl() {
+    const u = new URL('overlay.html', location.href);
+    u.search = $('obsPos').value === 'bottom-left' ? '' : `?pos=${$('obsPos').value}`;
+    $('obsUrl').value = u.href;
+  }
+  $('obsPos').addEventListener('change', obsUrl); obsUrl();
+  $('obsCopy').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText($('obsUrl').value); toast('Overlay URL copied.', 'ok'); }
+    catch { $('obsUrl').select(); toast('Select the URL and copy it.', ''); }
+  });
+  async function testPopup(size) {
+    try {
+      const r = await call('test-popup', { size });
+      $('obsStatus').textContent = r.overlays
+        ? `Sent to ${r.overlays} open overlay${r.overlays === 1 ? '' : 's'}. Check OBS.`
+        : 'Sent, but no overlay is open right now. Add the Browser Source in OBS (or open the URL in a browser tab) and try again.';
+    } catch (e) { toast(e.message, 'err'); }
+  }
+  $('testMed').addEventListener('click', () => testPopup('medium'));
+  $('testLarge').addEventListener('click', () => testPopup('large'));
 
   if (pw) enter();
 </script>

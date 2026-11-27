@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { TikTokLiveConnection, WebcastEvent, ControlEvent } from 'tiktok-live-connector';
-import { aggregate, buildQueue, draw, findViewers, giftToEvent } from './logic.js';
+import { aggregate, buildQueue, draw, findViewers, giftEntries, giftToEvent, rewards } from './logic.js';
 
 const TIKTOK_USERNAME = process.env.TIKTOK_USERNAME; // streamer's @handle, no "@"
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN; // required for admin endpoints
@@ -91,6 +91,39 @@ function snapshot() {
 }
 const publicRow = (r) => ({ rank: r.rank, userId: r.userId, nickname: r.nickname, coins: r.coins, rewards: r.rewards, entries: r.entries, eligible: r.eligible, odds: r.odds });
 
+// ---- OBS overlay: live popups over Server-Sent Events ----
+// Every qualifying gift (single gift of 1,000+ coins, while the giveaway runs) is pushed to
+// connected overlays. The last 2 minutes are kept so a reconnecting overlay can catch up.
+const overlayClients = new Set();
+const recentPopups = [];
+const RECENT_MS = 2 * 60 * 1000;
+let popupSeq = 0;
+function broadcast(popup) {
+  popup.id = `${popup.ts}-${++popupSeq}`;
+  recentPopups.push(popup);
+  while (recentPopups.length && recentPopups[0].ts < Date.now() - RECENT_MS) recentPopups.shift();
+  const frame = `id: ${popup.id}\nevent: popup\ndata: ${JSON.stringify(popup)}\n\n`;
+  for (const res of overlayClients) { try { res.write(frame); } catch { overlayClients.delete(res); } }
+}
+function popupFor(e, kind) {
+  const coins = Math.abs(e.coins);
+  if (e.coins <= 0 || coins < 1000) return null; // only qualifying gifts get a popup
+  const r = rewards(coins);
+  const row = derived().rows.find((x) => x.userId === e.userId);
+  return {
+    kind, ts: Date.now(), nickname: e.nickname ?? e.userId, coins, giftName: e.giftName ?? null,
+    size: r.large ? 'large' : 'medium', entriesGained: giftEntries(coins),
+    totalEntries: row?.entries ?? giftEntries(coins), rank: row?.rank ?? null,
+  };
+}
+function notifyOverlay(e, kind) {
+  if (!derived().active) return;
+  const p = popupFor(e, kind);
+  if (p) broadcast(p);
+}
+// Keep idle connections alive through Railway's proxy.
+setInterval(() => { for (const res of overlayClients) { try { res.write(': ping\n\n'); } catch { overlayClients.delete(res); } } }, 20_000);
+
 // ---- TikTok listener ----
 // Shared status, shown on the admin page via /health.
 const tiktok = { username: TIKTOK_USERNAME ?? null, connected: false, connectedSince: 0, lastEventAt: 0 };
@@ -155,6 +188,7 @@ if (TIKTOK_USERNAME) {
       if (e.msgId && seen.has(e.msgId)) return;
       if (e.msgId) seen.add(e.msgId);
       append(e);
+      notifyOverlay(e, 'gift');
       console.log(`+${e.coins} coins from ${e.nickname} (${e.giftName})`);
     });
     conn.on(WebcastEvent.STREAM_END, () => { if (conn === current) dropConnection('Stream ended'); });
@@ -211,6 +245,24 @@ async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
 
   // ---- public ----
+  if (req.method === 'GET' && url.pathname === '/overlay/stream') {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+      'Access-Control-Allow-Origin': ALLOW_ORIGIN,
+    });
+    res.write('retry: 3000\n: connected\n\n');
+    overlayClients.add(res);
+    req.on('close', () => overlayClients.delete(res));
+    return;
+  }
+  if (req.method === 'GET' && url.pathname === '/overlay/recent') {
+    const since = Number(url.searchParams.get('since') ?? 0);
+    const cutoff = Date.now() - RECENT_MS;
+    return json(res, 200, { popups: recentPopups.filter((p) => p.ts > since && p.ts >= cutoff), now: Date.now() });
+  }
   if (req.method === 'GET' && url.pathname === '/leaderboard') return json(res, 200, snapshot());
   if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, tiktok, now: Date.now() });
   if (req.method === 'GET' && url.pathname === '/lookup') {
@@ -232,6 +284,13 @@ async function handle(req, res) {
     const st = derived();
 
     if (action === 'check') return json(res, 200, { ok: true });
+    if (action === 'test-popup') {
+      // A clearly fake popup so Olivia can position the overlay in OBS. Never touches the log.
+      const large = body.size === 'large';
+      const coins = large ? 15000 : 1500;
+      broadcast({ kind: 'test', ts: Date.now(), nickname: 'Test Viewer', coins, giftName: large ? 'Test Lion' : 'Test Galaxy', size: large ? 'large' : 'medium', entriesGained: giftEntries(coins), totalEntries: giftEntries(coins), rank: 1 });
+      return json(res, 200, { ok: true, overlays: overlayClients.size });
+    }
     if (action === 'queue') return json(res, 200, queueSnapshot());
     if (action === 'viewers') {
       // Everyone who has sent a gift, for the "add or remove a gift" picker.
@@ -269,7 +328,9 @@ async function handle(req, res) {
       if (!userId || !Number.isFinite(coins) || coins === 0 || Math.abs(coins) > 10_000_000) {
         return json(res, 400, { error: 'userId and a gift value between 1 and 10,000,000 coins are required' });
       }
-      append({ type: 'adjust', ts, userId, nickname: cleanText(body.nickname, 80) ?? userId, coins: Math.trunc(coins), note: cleanText(body.note, 200) });
+      const adj = { type: 'adjust', ts, userId, nickname: cleanText(body.nickname, 80) ?? userId, coins: Math.trunc(coins), note: cleanText(body.note, 200) };
+      append(adj);
+      notifyOverlay(adj, 'manual'); // a gift added by hand still gets its on-stream thank-you
       return json(res, 200, snapshot());
     }
     if (action === 'drawinfo') {
