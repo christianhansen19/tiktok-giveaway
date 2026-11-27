@@ -54,6 +54,8 @@
   @media (min-width: 560px) { .controls .actions.two { grid-template-columns: 1fr 1fr; } }
   .controls .btn { width: 100%; }
   .msg { margin-top: 10px; font-weight: 600; color: var(--muted); }
+  .check { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 6px 2px 0; color: var(--ink); font-size: .95rem; cursor: pointer; }
+  .check input { width: 22px; height: 22px; min-height: 0; accent-color: var(--rose-deep); }
   .msg.err { color: #b3122f; }
   .row-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
   .row-btns .btn { flex: 1 1 160px; min-height: 44px; font-size: .9rem; }
@@ -109,6 +111,10 @@
       <button class="btn" id="realBtn" type="button" disabled>🎁 Draw the real winner</button>
       <button class="btn alt" id="practiceBtn" type="button">Practice run</button>
     </div>
+    <div id="respinBox" hidden>
+      <div class="actions"><button class="btn alt" id="respinBtn" type="button">🎲 Respin (pick a new winner)</button></div>
+      <label class="check"><input type="checkbox" id="skipPrev" checked> Skip anyone who already won</label>
+    </div>
     <div class="msg" id="msg" role="status" aria-live="polite">Loading…</div>
     <div class="row-btns">
       <button class="btn alt" id="soundBtn" type="button" aria-pressed="true">🔊 Sound on</button>
@@ -156,12 +162,14 @@
   function updateControls() {
     const real = $('realBtn');
     $('signinBox').hidden = !!pw;
-    if (running) { real.disabled = true; $('practiceBtn').disabled = true; return; }
+    $('respinBox').hidden = !(state?.winner && pw);
+    if (running) { real.disabled = true; $('practiceBtn').disabled = true; $('respinBtn').disabled = true; return; }
+    $('respinBtn').disabled = false;
     $('practiceBtn').disabled = practicePool().length === 0;
     if (!state) { real.disabled = true; return say('Can’t reach the server right now. Retrying…', true); }
     if (state.winner) {
       real.disabled = !pw; real.textContent = '↻ Replay the reveal';
-      return say(pw ? `${state.winner.nickname} already won. You can replay the reveal as often as you like (it doesn’t pick again).` : 'Sign in to replay the reveal.');
+      return say(pw ? `${state.winner.nickname} is the winner${state.draws > 1 ? ` (after ${state.draws - 1} respin${state.draws > 2 ? 's' : ''})` : ''}. Replay the reveal as often as you like (it doesn’t pick again), or respin to pick a new winner.` : 'Sign in to replay the reveal or respin.');
     }
     real.textContent = '🎁 Draw the real winner';
     if (state.active) { real.disabled = true; return say('The giveaway is still running. Stop it on the admin page before drawing. You can do a practice run now.'); }
@@ -315,13 +323,14 @@
     el.hidden = true; el.innerHTML = '';
   }
 
-  async function runShow({ pool, pick, total, seed, winner, practice }) {
+  async function runShow({ pool, pick, total, seed, winner, practice, respin, skipped }) {
     running = true; showed = true; updateControls();
     $('verify').textContent = ''; $('verify').className = 'verify';
     const cur = $('current'); cur.classList.remove('win');
-    $('curLabel').textContent = practice ? 'Practice run' : 'Drawing the winner';
+    $('curLabel').textContent = practice ? 'Practice run' : respin ? 'Respin: drawing a new winner' : 'Drawing the winner';
     $('curWho').textContent = 'Get ready…'; $('curSub').textContent = `${fmt.format(total)} tickets in the draw`;
     const { segs } = showPool(pool, practice);
+    if (skipped) $('chipPeople').textContent += ` · ${skipped} previous winner${skipped === 1 ? '' : 's'} left out`;
     lastShow = { segs, total, practice, highlight: null, frac: 0 };
     await countdown();
 
@@ -382,12 +391,22 @@
       if (!confirm('Draw the REAL winner now? This is saved and can’t be redone (the reveal can be replayed).')) return;
       say('Drawing…');
       const r = await call('draw');
-      runShow({ pool: r.pool, pick: r.pick, total: r.total, seed: r.seed, winner: r.winner, practice: false });
+      runShow({ pool: r.pool, pick: r.pick, total: r.total, seed: r.seed, winner: r.winner, practice: false, respin: r.respin, skipped: r.skipped });
     } catch (e) {
       running = false; say(e.message === 'Wrong password' ? 'Wrong password. Sign in again.' : e.message, true);
       if (e.message === 'Wrong password') { pw = null; try { sessionStorage.removeItem('gw_pw'); } catch {} }
       loadState();
     }
+  }
+  async function respin() {
+    if (running || !state?.winner) return;
+    const skip = $('skipPrev').checked;
+    if (!confirm(`Respin and pick a NEW winner? ${state.winner.nickname} will no longer be the winner${skip ? ' and can’t win this respin' : ''}. Every spin is saved in the log.`)) return;
+    try {
+      say('Respinning…');
+      const r = await call('draw', { force: true, skipPrevious: skip });
+      runShow({ pool: r.pool, pick: r.pick, total: r.total, seed: r.seed, winner: r.winner, practice: false, respin: true, skipped: r.skipped });
+    } catch (e) { say(e.message, true); loadState(); }
   }
   async function practice() {
     if (running) return;
@@ -402,6 +421,7 @@
   // ---------- controls ----------
   $('realBtn').addEventListener('click', realDraw);
   $('practiceBtn').addEventListener('click', practice);
+  $('respinBtn').addEventListener('click', respin);
   $('signin').addEventListener('click', async () => {
     pw = $('pw').value;
     try { await call('check'); try { sessionStorage.setItem('gw_pw', pw); } catch {} say('Signed in.'); }

@@ -41,15 +41,16 @@ function append(e) {
 let cache = { len: -1 };
 function derived() {
   if (cache.len === events.length) return cache;
-  let startIdx = -1, drawIdx = -1, active = false, result = null;
+  let startIdx = -1, drawIdx = -1, active = false, result = null, winners = [];
   for (let i = 0; i < events.length; i++) {
     const e = events[i];
-    if (e.type === 'start') { startIdx = i; drawIdx = -1; active = true; result = null; }
+    if (e.type === 'start') { startIdx = i; drawIdx = -1; active = true; result = null; winners = []; }
     else if (e.type === 'stop') active = false;
-    else if (e.type === 'draw') { result = e; drawIdx = i; }
+    else if (e.type === 'resume' && startIdx !== -1) active = true; // keep counting, no reset
+    else if (e.type === 'draw') { result = e; drawIdx = i; winners.push(e.userId); }
   }
   const rows = aggregate(startIdx === -1 ? [] : events.slice(startIdx), EXCLUDED);
-  cache = { len: events.length, startIdx, drawIdx, active, result, rows };
+  cache = { len: events.length, startIdx, drawIdx, active, result, rows, winners };
   return cache;
 }
 const currentState = () => derived();
@@ -72,6 +73,8 @@ function snapshot() {
   const others = rows.filter((r) => r.entries === 0); // sent coins but no qualifying gift yet
   return {
     active,
+    started: derived().startIdx !== -1,
+    draws: derived().winners.length,
     updatedAt: Date.now(),
     totalCoins: rows.reduce((s, r) => s + r.coins, 0),
     totalEntries: rows.filter((r) => r.eligible).reduce((s, r) => s + r.entries, 0),
@@ -249,6 +252,12 @@ async function handle(req, res) {
       append({ type: 'start', ts });
       return json(res, 200, snapshot());
     }
+    if (action === 'resume') {
+      // Turn counting back on after a Stop WITHOUT wiping anything.
+      if (st.startIdx === -1) return json(res, 409, { error: 'There is no giveaway to resume. Press Start to begin one.' });
+      if (!st.active) append({ type: 'resume', ts });
+      return json(res, 200, snapshot());
+    }
     if (action === 'stop') {
       if (st.active) append({ type: 'stop', ts });
       return json(res, 200, snapshot());
@@ -264,20 +273,25 @@ async function handle(req, res) {
       return json(res, 200, snapshot());
     }
     if (action === 'drawinfo') {
-      // Everything needed to replay the on-screen reveal of the draw that already happened.
+      // Everything needed to replay the on-screen reveal of the latest draw.
       if (!st.result) return json(res, 404, { error: 'No winner has been drawn yet.' });
-      const rowsThen = aggregate(events.slice(st.startIdx, st.drawIdx), EXCLUDED);
       const w = st.result;
-      return json(res, 200, { winner: { userId: w.userId, nickname: w.nickname, coins: w.coins, entries: w.entries }, seed: w.seed, pick: w.pick, total: w.total, pool: poolOf(rowsThen), at: w.ts });
+      const skip = new Set(w.skip ?? []);
+      const rowsThen = aggregate(events.slice(st.startIdx, st.drawIdx), EXCLUDED).filter((r) => !skip.has(r.userId));
+      return json(res, 200, { winner: { userId: w.userId, nickname: w.nickname, coins: w.coins, entries: w.entries }, seed: w.seed, pick: w.pick, total: w.total, pool: poolOf(rowsThen), skipped: skip.size, respin: (st.winners.length > 1), at: w.ts });
     }
     if (action === 'draw') {
       if (st.active) return json(res, 409, { error: 'Stop the giveaway before drawing.' });
+      // A second draw is a respin: only with force. By default a respin skips anyone who already won.
       if (st.result && body.force !== true) return json(res, 409, { error: `A winner was already drawn: ${st.result.nickname}.`, winner: { nickname: st.result.nickname } });
+      const skipIds = st.result && body.skipPrevious !== false ? [...new Set(st.winners)] : [];
+      const skip = new Set(skipIds);
+      const rows = st.rows.filter((r) => !skip.has(r.userId));
       const seed = cleanText(body.seed, 100) ?? randomBytes(16).toString('hex');
-      const r = draw(st.rows, seed);
-      if (!r) return json(res, 400, { error: 'Nobody has any entries yet (a single gift must be 1,000+ coins to earn an ornament and entries).' });
-      append({ type: 'draw', ts, userId: r.winner.userId, nickname: r.winner.nickname, coins: r.winner.coins, entries: r.winner.entries, seed, pick: r.pick, total: r.total });
-      return json(res, 200, { winner: publicRow(r.winner), seed, pick: r.pick, total: r.total, pool: poolOf(st.rows) });
+      const r = draw(rows, seed);
+      if (!r) return json(res, 400, { error: skipIds.length ? 'Nobody else has entries to respin to.' : 'Nobody has any entries yet (a single gift must be 1,000+ coins to earn an ornament and entries).' });
+      append({ type: 'draw', ts, userId: r.winner.userId, nickname: r.winner.nickname, coins: r.winner.coins, entries: r.winner.entries, seed, pick: r.pick, total: r.total, skip: skipIds, respin: !!st.result });
+      return json(res, 200, { winner: publicRow(r.winner), seed, pick: r.pick, total: r.total, pool: poolOf(rows), skipped: skipIds.length, respin: !!st.result });
     }
     return json(res, 404, { error: 'unknown action' });
   }

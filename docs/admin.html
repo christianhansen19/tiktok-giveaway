@@ -25,6 +25,7 @@
   .msg.ok { color: var(--ok); }
   .result { margin-top: 14px; padding: 14px; background: var(--gold); border: 2px solid var(--ink); border-radius: 12px; font-weight: 700; word-break: break-word; }
   .result[hidden], .hidden { display: none; }
+  .paused { margin-top: 12px; padding: 10px 12px; border: 2px solid var(--ink); border-radius: 12px; background: #ffe3e8; font-weight: 600; }
   .conn { margin-top: 8px; font-weight: 700; }
   .conn.bad { color: #b3122f; }
   .conn.ok { color: var(--ok); }
@@ -83,11 +84,13 @@
       </div>
       <p class="hint" id="stats"></p>
       <p class="hint conn" id="conn" role="status" aria-live="polite"></p>
-      <div class="actions">
+      <div class="paused" id="paused" hidden>⏸ Counting is paused, so gifts are <b>not</b> being counted. Press <b>Resume counting</b> to pick up where you left off.</div>
+      <div class="actions" style="grid-template-columns:1fr">
+        <button class="btn" id="resume" hidden>▶ Resume counting</button>
+        <button class="btn alt" id="stop">⏸ Stop counting</button>
         <button class="btn" id="start">▶ Start</button>
-        <button class="btn alt" id="stop">■ Stop</button>
       </div>
-      <p class="hint" style="margin-top:12px">Start begins a <b>new</b> giveaway and resets everyone to zero. Don't press it between streams. Just leave it running.</p>
+      <p class="hint" style="margin-top:12px"><b>Stop</b> pauses counting (do this before the draw). <b>Resume</b> continues with everyone's totals. <b>Start new giveaway</b> wipes everything and begins again, so don't press it between streams; just leave it running.</p>
     </section>
 
     <section class="card" id="queueCard">
@@ -105,7 +108,7 @@
 
     <section class="card">
       <h2>Pick the winner</h2>
-      <p class="hint">Stop the giveaway first. The draw show picks the real winner on screen, with confetti, so it can be screen-recorded for Discord. One winner, weighted by entries. It can't be redone, but the reveal can be replayed.</p>
+      <p class="hint">Stop the giveaway first. The draw show picks the real winner on screen, with confetti, so it can be screen-recorded for Discord. One winner, weighted by entries. The reveal can be replayed, and you can respin to pick a new winner if you need to.</p>
       <div class="result" id="drawOut" hidden></div>
       <div class="actions" style="grid-template-columns:1fr"><a class="btn" id="showLink" href="draw.html" style="display:grid;place-items:center;text-decoration:none">🎬 Open the draw show</a></div>
       <p class="hint" style="margin-top:10px">Want to rehearse first? The draw show has a practice run that doesn't pick anyone.</p>
@@ -173,11 +176,19 @@
         }
       } catch { $('conn').className = 'hint conn bad'; $('conn').textContent = '⚠️ Can’t check the TikTok connection.'; }
       // Start wipes the board, so it's only available when nothing is running.
-      $('start').disabled = d.active; $('stop').disabled = !d.active;
-      $('start').title = d.active ? 'Stop the current giveaway first' : '';
+      // Running: Stop. Paused: Resume (keeps totals) or Start new (wipes). Never started: Start.
+      const paused = !d.active && d.started;
+      $('resume').hidden = !paused;
+      $('stop').disabled = !d.active;
+      $('stop').hidden = !d.active;
+      $('start').disabled = d.active;
+      $('start').hidden = d.active;
+      $('start').textContent = d.started ? '↺ Start new giveaway' : '▶ Start';
+      $('start').className = d.started ? 'btn alt' : 'btn';
+      $('paused').hidden = !(paused && !d.winner);
       $('drawOut').hidden = !d.winner;
       if (d.winner) $('drawOut').textContent = `🏆 Winner: ${d.winner.nickname} · ${fmt.format(d.winner.entries ?? 0)} entries · seed ${d.winner.seed}`;
-      $('showLink').textContent = d.winner ? '🎬 Replay the reveal' : '🎬 Open the draw show';
+      $('showLink').textContent = d.winner ? '🎬 Draw show: replay or respin' : '🎬 Open the draw show';
     } catch { $('stats').textContent = 'Can’t reach the server.'; }
   }
 
@@ -315,10 +326,11 @@
   $('start').onclick = () => {
     const n = queue.pending ?? queue.items.filter((i) => !i.done).length;
     const warn = n ? `\n\n⚠️ ${n} ornament${n === 1 ? ' is' : 's are'} still NOT written. They will disappear from the queue (the saved log keeps them).` : '';
-    if (!confirm('Start a NEW giveaway? Everyone’s coins reset to zero.' + warn)) return;
+    if (!confirm('Start a NEW giveaway? This WIPES the current board: everyone’s coins, ornaments and entries reset to zero. (To keep counting the current one, press Resume instead.)' + warn)) return;
     run(async () => { await call('start'); $('drawOut').hidden = true; toast('Giveaway started.', 'ok'); });
   };
-  $('stop').onclick = () => run(async () => { await call('stop'); toast('Giveaway stopped.', 'ok'); });
+  $('stop').onclick = () => run(async () => { await call('stop'); toast('Counting stopped. Gifts are not counted until you resume.', 'ok'); });
+  $('resume').onclick = () => run(async () => { await call('resume'); toast('Counting resumed. Everyone kept their totals.', 'ok'); });
   $('adjust').onclick = () => run(async () => {
     const opt = $('uid').selectedOptions[0];
     if (!opt || !opt.value) throw new Error('Choose a viewer first');

@@ -165,6 +165,30 @@ test('API end to end', async (t) => {
     assert.equal(d.winner.seed, 'fixed-seed');
   });
 
+  await t.test('respin: needs force, skips previous winners by default, replay shows the respin', async () => {
+    const first = await board();
+    const re = await admin('draw', { force: true, seed: 'respin-1' });
+    assert.equal(re.status, 200);
+    const r = await jsonOf(re);
+    assert.equal(r.respin, true);
+    assert.equal(r.skipped, 1);
+    assert.notEqual(r.winner.nickname, first.winner.nickname, 'previous winner is skipped');
+    assert.ok(!r.pool.some((p) => p.nickname === first.winner.nickname));
+    assert.equal(r.pool.reduce((a, p) => a + p.entries, 0), r.total);
+    const pick = (createHash('sha256').update('respin-1:0').digest().readUIntBE(0, 6) / 2 ** 48) * r.total;
+    assert.ok(Math.abs(pick - r.pick) < 1e-9);
+    const info = await jsonOf(await admin('drawinfo'));
+    assert.equal(info.winner.userId, r.winner.userId);
+    assert.deepEqual(info.pool.map((p) => p.userId), r.pool.map((p) => p.userId), 'replay uses the same reduced pool');
+    const d = await board();
+    assert.equal(d.winner.nickname, r.winner.nickname, 'newest draw is the official winner');
+    assert.equal(d.draws, 2);
+    // a respin that allows previous winners uses the full pool again
+    const all = await jsonOf(await admin('draw', { force: true, skipPrevious: false, seed: 'respin-2' }));
+    assert.equal(all.skipped, 0);
+    assert.equal(all.total, 19);
+  });
+
   await t.test('survives a restart, and a corrupt log line does not stop it booting', async () => {
     const before = await board();
     const qBefore = await jsonOf(await admin('queue'));
@@ -178,6 +202,20 @@ test('API end to end', async (t) => {
     assert.equal(after.winner.nickname, before.winner.nickname);
     const qAfter = await jsonOf(await admin('queue'));
     assert.deepEqual([qAfter.pending, qAfter.done], [qBefore.pending, qBefore.done]);
+  });
+
+  await t.test('resume turns counting back on without wiping anything', async () => {
+    const before = await board();
+    assert.equal(before.active, false);
+    assert.equal(before.started, true);
+    const r = await jsonOf(await admin('resume'));
+    assert.equal(r.active, true);
+    assert.equal(r.totalCoins, before.totalCoins);
+    assert.equal(r.totalEntries, before.totalEntries);
+    assert.equal((await jsonOf(await admin('resume'))).active, true); // idempotent
+    await admin('adjust', { userId: 'b', nickname: 'Matt', coins: 1000 });
+    assert.equal((await board()).totalEntries, before.totalEntries + 1, 'gifts count again after resume');
+    await admin('stop');
   });
 
   await t.test('a new giveaway after a finished one starts clean and clears the winner', async () => {
