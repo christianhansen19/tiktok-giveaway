@@ -1,6 +1,8 @@
 # TikTok LIVE giveaway tracker
 
-Counts coins per viewer from TikTok LIVE gifts, awards stacking ornaments (1,000+ small, 5,000+ medium, 10,000+ large) and draws one $100 gift card winner weighted by coins.
+Counts coins per viewer from TikTok LIVE gifts and draws one $100 gift card winner weighted by entries.
+
+**Rules** (see `server/logic.js`): only a single gift of 1,000+ coins counts, and small gifts never add up. Each qualifying gift earns one ornament (1,000-9,999 coins = medium, 10,000+ = large) and 1 entry per 1,000 coins, rounded down (15,000 = 1 large ornament, 15 entries).
 
 ## Run the server
 ```bash

@@ -7,7 +7,7 @@
 <title>Giveaway Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Mrs+Saint+Delafield&family=Playfair+Display:ital,wght@1,900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Mrs+Saint+Delafield&family=Shrikhand&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
   main { max-width: 560px; }
@@ -16,7 +16,7 @@
   header .title { font-size: clamp(2rem, 10vw, 3.4rem); margin-top: -6px; }
 
   .status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  .big-stat { font: 900 1.6rem/1.1 var(--display); font-style: italic; font-variant-numeric: tabular-nums; }
+  .big-stat { font: 400 1.6rem/1.1 var(--display); font-variant-numeric: tabular-nums; }
   .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
   .actions .btn { width: 100%; }
   .btn.danger { background: #e5254b; }
@@ -30,13 +30,12 @@
   .conn.ok { color: var(--ok); }
   .hint { margin: 2px 0 0; font-size: .9rem; color: var(--muted); }
   .size { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 2px solid var(--ink); font: 800 .75rem/1.5 var(--sans); text-transform: uppercase; letter-spacing: .06em; }
-  .s-small { background: var(--blush); }
   .s-medium { background: var(--rose-r); }
   .s-large { background: var(--rose-deep); color: #fff; }
   .next-card { margin-top: 14px; padding: 16px; border: 2px solid var(--ink); border-radius: 14px; background: var(--gold); text-align: center; }
   .next-card.clear { background: var(--blush); }
   .next-card .eyebrow { color: var(--ink); }
-  .next-name { margin: 8px 0 10px; font: 900 clamp(1.7rem, 9vw, 2.4rem)/1.1 var(--display); font-style: italic; word-break: break-word; }
+  .next-name { margin: 8px 0 10px; font: 400 clamp(1.7rem, 9vw, 2.4rem)/1.1 var(--display); word-break: break-word; }
   .next-card .btn { width: 100%; margin-top: 14px; min-height: 56px; font-size: 1.1rem; }
   .next-card p { margin: 6px 0 0; font-weight: 600; }
   .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 18px 0 8px; }
@@ -189,7 +188,7 @@
   let queue = { items: [], pending: 0, done: 0, now: Date.now() };
   let qTab = 'todo', qLoaded = false;
   const known = new Set(), fresh = new Set();
-  const SIZE = { small: 'Small', medium: 'Medium', large: 'Large' };
+  const SIZE = { medium: 'Medium', large: 'Large' };
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function ago(ts) {

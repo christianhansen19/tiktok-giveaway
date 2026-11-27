@@ -1,37 +1,32 @@
 import { createHash } from 'node:crypto';
 
 // RULES
-// 1. Each SINGLE GIFT (a streak counts as one gift at its total) is split into ornaments by
-//    coin value, biggest first: large = 10,000, medium = 5,000, small = 1,000.
-//    Leftovers under 1,000 are ignored.
-//      1,500  -> 1 small                 12,000 -> 1 large + 2 small
-//      2,500  -> 2 small                 16,000 -> 1 large + 1 medium + 1 small
-//      5,000  -> 1 medium                25,000 -> 2 large + 1 medium
-//      7,000  -> 1 medium + 2 small
-//    Gifts add up per gift, not as a running total: two 1,500 gifts = 2 small.
-// 2. Draw entries come from ornaments: 1 per small, 5 per medium, 10 per large
-//    (so 1 entry per 1,000 coins of ornament value). A viewer's chance to win =
-//    their entries / all eligible entries.
+// Only a SINGLE gift of 1,000+ coins counts (a streak counts as one gift at its total).
+// Small gifts never add up: two 500-coin gifts earn nothing.
+// 1. One ornament per qualifying gift (one name written per gift):
+//      1,000 - 9,999 coins -> 1 medium ornament
+//      10,000+ coins       -> 1 large ornament
+// 2. Entries for the draw come only from qualifying gifts: 1 per 1,000 coins, rounded down
+//    per gift. 15,000 = 1 large ornament and 15 entries. 1,500 = 1 medium, 1 entry.
+//    A viewer's chance to win = their entries / all eligible entries.
+export const MIN_GIFT = 1000;
+export const LARGE_MIN = 10000;
 export const TIERS = [
-  { key: 'small', value: 1000, entries: 1 },
-  { key: 'medium', value: 5000, entries: 5 },
-  { key: 'large', value: 10000, entries: 10 },
+  { key: 'medium', min: MIN_GIFT },
+  { key: 'large', min: LARGE_MIN },
 ];
 
-// Ornaments earned by ONE gift worth `coins` (counts, can be more than 1 of a size).
+// Ornament earned by ONE gift worth `coins` (at most one).
 export function rewards(coins) {
-  const out = { small: 0, medium: 0, large: 0 };
-  let left = Math.max(coins, 0);
-  for (const t of [...TIERS].reverse()) { // large, medium, small
-    out[t.key] = Math.floor(left / t.value);
-    left -= out[t.key] * t.value;
-  }
-  return out;
+  return {
+    medium: coins >= MIN_GIFT && coins < LARGE_MIN ? 1 : 0,
+    large: coins >= LARGE_MIN ? 1 : 0,
+  };
 }
 
-// Draw entries represented by a set of ornament counts.
-export function entriesOf(orn) {
-  return TIERS.reduce((s, t) => s + Math.max(orn[t.key] ?? 0, 0) * t.entries, 0);
+// Draw entries earned by ONE gift worth `coins`.
+export function giftEntries(coins) {
+  return coins >= MIN_GIFT ? Math.floor(coins / 1000) : 0;
 }
 
 // Convert a raw TikTok gift message into a log event, or null if it should not count yet.
@@ -63,27 +58,31 @@ export function giftToEvent(data, now = Date.now()) {
 }
 
 // Rebuild per-viewer results from the event log (the log is the source of truth).
-// events: gift {coins} = one gift; adjust {coins} = add one gift of that size (positive)
-// or remove a mistakenly counted gift of that size (negative).
+// events: gift {coins} = one gift; adjust {coins} = add one gift of that value (positive)
+// or remove a mistakenly counted gift of that value (negative).
 export function aggregate(events, excluded = new Set()) {
   const byUser = new Map();
   for (const e of events) {
     if (e.type !== 'gift' && e.type !== 'adjust') continue;
     const u = byUser.get(e.userId) ?? {
-      userId: e.userId, nickname: e.nickname, coins: 0, orn: { small: 0, medium: 0, large: 0 },
+      userId: e.userId, nickname: e.nickname, coins: 0, entries: 0, orn: { medium: 0, large: 0 },
     };
     const sign = e.coins < 0 ? -1 : 1;
-    const r = rewards(Math.abs(e.coins));
+    const value = Math.abs(e.coins);
+    const r = rewards(value);
     for (const t of TIERS) u.orn[t.key] += sign * r[t.key];
+    u.entries += sign * giftEntries(value);
     u.coins += e.coins;
     if (e.nickname) u.nickname = e.nickname; // latest nickname wins
     byUser.set(e.userId, u);
   }
 
-  const viewers = [...byUser.values()].filter((u) => u.coins > 0).map((u) => {
-    const rw = Object.fromEntries(TIERS.map((t) => [t.key, Math.max(u.orn[t.key], 0)]));
-    return { ...u, rewards: rw, entries: entriesOf(rw), eligible: !excluded.has(u.userId) };
-  });
+  const viewers = [...byUser.values()].filter((u) => u.coins > 0).map((u) => ({
+    ...u,
+    rewards: { medium: Math.max(u.orn.medium, 0), large: Math.max(u.orn.large, 0) },
+    entries: Math.max(u.entries, 0),
+    eligible: !excluded.has(u.userId),
+  }));
   // Excluded users (streamer, mods, bots) still appear on the board but are not in the draw pool.
   const poolEntries = viewers.filter((v) => v.eligible).reduce((s, v) => s + v.entries, 0);
 
@@ -124,37 +123,50 @@ export function draw(board, seed) {
   return { winner: pool[pool.length - 1], seed, pick, total };
 }
 
-// ORNAMENT QUEUE: one item per ornament, oldest first, for the current giveaway.
-// Items are derived from the event log, so nothing is stored twice:
-//  - each gift / positive manual adjust adds every ornament that single gift is split into
-//  - a negative manual adjust cancels the latest still-unwritten ornament of that size
-//    for that viewer (a gift counted by mistake disappears from the list)
+// ORNAMENT QUEUE: one item per qualifying gift (= one ornament), oldest first, for the
+// current giveaway. Items are derived from the event log, so nothing is stored twice:
+//  - each gift / positive manual adjust of 1,000+ coins adds one item (medium or large)
+//  - a negative manual adjust cancels the latest still-unwritten item of that size for that viewer
 //  - `ornament_check` events mark an item written / un-written (last event wins)
-// Item ids are "<position in the full log>-<size>" (extras of the same size add "-2", "-3"...).
-// The log is append-only, so ids never change.
+// Item id = "<position in the full log>". The log is append-only, so ids never change.
+// Legacy: before the one-ornament-per-gift rule, check-offs used ids like "12-small", "12-large".
+// If any legacy id for a gift's position is ticked, that gift counts as written (unless an
+// explicit tick/untick on the new id says otherwise), so Olivia is never asked to redo a name.
 export function buildQueue(events) {
   const startIdx = events.map((e) => e.type).lastIndexOf('start');
   if (startIdx === -1) return [];
   const items = [];
-  const done = new Map();
+  const explicit = new Map(); // new-style id -> done
+  const legacy = new Map(); // log position -> Set of ticked legacy ids
+  const isDone = (id) => {
+    if (explicit.has(id)) return explicit.get(id);
+    return (legacy.get(id)?.size ?? 0) > 0;
+  };
   for (let i = startIdx + 1; i < events.length; i++) {
     const e = events[i];
-    if (e.type === 'ornament_check') { done.set(e.itemId, !!e.done); continue; }
+    if (e.type === 'ornament_check') {
+      const id = String(e.itemId);
+      if (/^\d+$/.test(id)) explicit.set(id, !!e.done);
+      else {
+        const pos = id.split('-')[0];
+        const set = legacy.get(pos) ?? new Set();
+        if (e.done) set.add(id); else set.delete(id);
+        legacy.set(pos, set);
+      }
+      continue;
+    }
     if (e.type !== 'gift' && e.type !== 'adjust') continue;
-    const r = rewards(Math.abs(e.coins));
-    for (const t of TIERS) {
-      for (let n = 1; n <= r[t.key]; n++) {
-        if (e.coins >= 0) {
-          // First of a size keeps the plain id "<pos>-<size>"; extras are "<pos>-<size>-<n>".
-          items.push({ id: n === 1 ? `${i}-${t.key}` : `${i}-${t.key}-${n}`, userId: e.userId, nickname: e.nickname, size: t.key, coins: e.coins, ts: e.ts });
-        } else {
-          for (let j = items.length - 1; j >= 0; j--) {
-            const it = items[j];
-            if (it.userId === e.userId && it.size === t.key && !done.get(it.id)) { items.splice(j, 1); break; }
-          }
-        }
+    const value = Math.abs(e.coins);
+    const size = value >= LARGE_MIN ? 'large' : value >= MIN_GIFT ? 'medium' : null;
+    if (!size) continue;
+    if (e.coins >= 0) {
+      items.push({ id: String(i), userId: e.userId, nickname: e.nickname, size, coins: e.coins, ts: e.ts });
+    } else {
+      for (let j = items.length - 1; j >= 0; j--) {
+        const it = items[j];
+        if (it.userId === e.userId && it.size === size && !isDone(it.id)) { items.splice(j, 1); break; }
       }
     }
   }
-  return items.map((it) => ({ ...it, done: done.get(it.id) === true }));
+  return items.map((it) => ({ ...it, done: isDone(it.id) }));
 }

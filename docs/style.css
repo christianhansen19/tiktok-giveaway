@@ -1,4 +1,4 @@
-/* Shared look for the giveaway pages: dusty-rose split, heavy italic caps with hard black
+/* Shared look for the giveaway pages: dusty-rose split, Shrikhand display caps with hard black
    shadow, thin script accent, sticker-style cards. Mobile first. */
 :root {
   --rose-l: #dcc1cd;
@@ -12,7 +12,7 @@
   --silver: #c7ccd4;
   --bronze: #d49a6a;
   --ok: #1a7f4b;
-  --display: "Playfair Display", "Times New Roman", Georgia, serif;
+  --display: "Shrikhand", "Arial Black", Georgia, serif;
   --script: "Mrs Saint Delafield", "Snell Roundhand", "Segoe Script", cursive;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --sticker: 3px 3px 0 var(--ink);
@@ -35,8 +35,8 @@ main { max-width: 720px; margin: 0 auto; padding: 24px 16px 72px; }
 .script { font-family: var(--script); font-weight: 400; line-height: .9; margin: 0; color: var(--ink); }
 .title {
   font-family: var(--display);
-  font-weight: 900;
-  font-style: italic;
+  font-weight: 400;
+  font-style: normal; /* Shrikhand is already slanted and has one weight: no faux bold/italic */
   text-transform: uppercase;
   line-height: .95;
   margin: 0;
@@ -56,7 +56,7 @@ main { max-width: 720px; margin: 0 auto; padding: 24px 16px 72px; }
   padding: 16px;
   margin: 0 0 20px;
 }
-.card h2 { margin: 0 0 4px; font: 900 1.15rem/1.2 var(--display); font-style: italic; text-transform: uppercase; }
+.card h2 { margin: 0 0 4px; font: 400 1.15rem/1.2 var(--display); text-transform: uppercase; }
 .muted { color: var(--muted); }
 
 /* ---------- Pills & buttons ---------- */

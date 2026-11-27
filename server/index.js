@@ -66,11 +66,11 @@ function snapshot() {
     board: board.slice(0, 100),
     // Everyone owed at least one ornament (full list, for shipping).
     owed: board
-      .filter((r) => r.rewards.small + r.rewards.medium + r.rewards.large > 0)
+      .filter((r) => r.rewards.medium + r.rewards.large > 0)
       .map((r) => ({ userId: r.userId, nickname: r.nickname, ...r.rewards })),
     ornamentTotals: board.reduce(
-      (t, r) => ({ small: t.small + r.rewards.small, medium: t.medium + r.rewards.medium, large: t.large + r.rewards.large }),
-      { small: 0, medium: 0, large: 0 },
+      (t, r) => ({ medium: t.medium + r.rewards.medium, large: t.large + r.rewards.large }),
+      { medium: 0, large: 0 },
     ),
     winner: result ? { nickname: result.nickname, coins: result.coins, entries: result.entries, seed: result.seed, at: result.ts } : null,
   };
@@ -225,7 +225,7 @@ http.createServer(async (req, res) => {
       if (currentState().active) return json(res, 409, { error: 'stop the giveaway before drawing' });
       const seed = body.seed ?? randomBytes(16).toString('hex');
       const r = draw(aggregate(giveawayEvents(), EXCLUDED), seed);
-      if (!r) return json(res, 400, { error: 'nobody has any entries yet (a gift must be 1,000+ coins to earn an ornament)' });
+      if (!r) return json(res, 400, { error: 'nobody has any entries yet (a single gift must be 1,000+ coins to earn an ornament and entries)' });
       append({ type: 'draw', ts, userId: r.winner.userId, nickname: r.winner.nickname, coins: r.winner.coins, entries: r.winner.entries, seed, pick: r.pick, total: r.total });
       return json(res, 200, { winner: r.winner, seed, pick: r.pick, total: r.total });
     }
