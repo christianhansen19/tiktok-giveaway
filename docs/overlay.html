@@ -76,6 +76,22 @@
     @keyframes fadeIn { from { opacity: 0; } } @keyframes fadeOut { to { opacity: 0; } }
   }
 
+  /* resting card: shown whenever no gift popup is on screen */
+  .idle-card {
+    display: grid; grid-template-columns: auto 1fr; gap: calc(14px * var(--scale)); align-items: center;
+    padding: calc(14px * var(--scale)) calc(20px * var(--scale));
+    background: var(--paper); border: calc(3px * var(--scale)) solid var(--ink); border-radius: calc(20px * var(--scale));
+    box-shadow: calc(5px * var(--scale)) calc(5px * var(--scale)) 0 var(--ink);
+    font-size: calc(16px * var(--scale));
+  }
+  .idle-card .orn { width: calc(58px * var(--scale)); animation: sway 3.2s ease-in-out infinite; transform-origin: 50% 8%; }
+  @keyframes sway { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+  .idle-big { font: 400 1.75em/1.05 var(--display); }
+  .idle-big em { font-style: normal; color: var(--rose-deep); }
+  .idle-small { margin-top: .3em; font-weight: 700; color: var(--muted); font-size: .95em; }
+  .idle-slot { transition: opacity .45s ease, transform .45s ease; }
+  .idle-slot.gone { opacity: 0; transform: translateY(calc(12px * var(--scale))) scale(.97); }
+
   #confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; }
   .debug { position: fixed; left: 8px; top: 8px; padding: 4px 8px; border-radius: 6px; background: rgba(20, 9, 15, .8); color: #fff; font: 700 12px var(--sans); }
 </style>
@@ -83,6 +99,15 @@
 <body>
 <canvas id="confetti" aria-hidden="true"></canvas>
 <div class="slot" id="slot" hidden aria-live="polite"></div>
+<div class="slot idle-slot gone" id="idle" hidden>
+  <div class="idle-card">
+    <svg class="orn" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/><circle class="shine" cx="8.5" cy="13.5" r="2.2"/></svg>
+    <div>
+      <div class="idle-big">1,000+ coins = <em>your name on an ornament</em></div>
+      <div class="idle-small" id="idleSmall">In one gift · 1 entry per 1,000 coins for the $100 gift card</div>
+    </div>
+  </div>
+</div>
 <div class="debug" id="debug" hidden></div>
 
 <script>
@@ -93,6 +118,7 @@
   const HOLD = Math.min(Math.max(Number(params.get('hold')) || 6, 2), 30) * 1000;
   const TEST = params.has('test');
   const DEBUG = params.has('debug');
+  const IDLE = params.get('idle') !== '0'; // ?idle=0 hides the resting card
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   const fmt = new Intl.NumberFormat();
   const $ = (id) => document.getElementById(id);
@@ -100,6 +126,19 @@
   document.documentElement.style.setProperty('--scale', SCALE);
   const side = POS.includes('left') ? 'left' : POS.includes('right') ? 'right' : 'center';
   $('slot').className = `slot ${POS} ${side}`;
+  $('idle').className = `slot idle-slot gone ${POS}`;
+
+  // Resting card: visible whenever no popup is showing; fades out while a gift popup plays.
+  const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function showIdle() {
+    if (!IDLE) return;
+    const el = $('idle'); el.hidden = false; void el.offsetWidth; el.classList.remove('gone');
+  }
+  async function hideIdle() {
+    const el = $('idle');
+    if (el.hidden) return;
+    el.classList.add('gone'); await sleepMs(450); el.hidden = true;
+  }
 
   // ---------- popup queue: one at a time, never overlapping ----------
   const queue = [];
@@ -134,8 +173,9 @@
 
   async function next() {
     const p = queue.shift();
-    if (!p) { showing = false; return; }
+    if (!p) { showing = false; showIdle(); return; }
     showing = true;
+    await hideIdle();
     const slot = $('slot');
     const hold = queue.length >= 3 ? Math.min(HOLD, 3500) : HOLD; // speed up when a burst is waiting
     slot.innerHTML = cardHTML(p);
@@ -200,6 +240,8 @@
     es.addEventListener('error', () => status('reconnecting…')); // EventSource retries on its own
   }
 
+  (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => { if (!showing) showIdle(); });
+
   if (TEST) {
     // Sample popups so the overlay can be positioned in OBS without anyone gifting.
     const samples = [
@@ -208,7 +250,7 @@
     ];
     let n = 0;
     const fire = () => { const s = samples[n++ % samples.length]; enqueue({ ...s, id: `test-${n}`, ts: Date.now() }); };
-    fire(); setInterval(() => { if (!showing) fire(); }, 2500);
+    fire(); setInterval(() => { if (!showing) fire(); }, 5000);
   } else {
     connect();
   }

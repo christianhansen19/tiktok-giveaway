@@ -29,7 +29,7 @@ A recordable reveal of the real draw for Discord. Stop the giveaway, open the dr
 ## OBS gift popups (`docs/overlay.html`)
 A thank-you card pops up on stream for every qualifying gift (a single gift of 1,000+ coins while the giveaway runs): name, gift, ornament size and entries gained. Large ornaments get a gold card and confetti. Popups queue one at a time, no sound.
 
-In OBS: **Sources → + → Browser**, URL `https://christianhansen19.github.io/tiktok-giveaway/overlay.html`, width 1920, height 1080 (the page is transparent). Options: `?pos=bottom-left|bottom-right|top-left|top-right|center`, `?scale=1.25`, `?hold=6` (seconds), `?test=1` (sample popups for positioning). The admin page builds the URL and has **Test popup** buttons.
+In OBS: **Sources → + → Browser**, URL `https://christianhansen19.github.io/tiktok-giveaway/overlay.html`, width 1920, height 1080 (the page is transparent). Options: `?pos=bottom-left|bottom-right|top-left|top-right|center`, `?scale=1.25`, `?hold=6` (seconds), `?test=1` (sample popups for positioning), `?idle=0` (hide the resting card). Between gifts it shows a resting card: "1,000+ coins = your name on an ornament", which fades out while a gift popup plays. The admin page builds the URL and has **Test popup** buttons.
 
 Under the hood: `GET /overlay/stream` (Server-Sent Events, heartbeat every 20s) and `GET /overlay/recent?since=<ms>` so a reconnecting overlay catches up on the last 2 minutes (not across a server restart).
 
