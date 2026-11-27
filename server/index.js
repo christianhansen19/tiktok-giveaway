@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { TikTokLiveConnection, WebcastEvent, ControlEvent } from 'tiktok-live-connector';
-import { aggregate, buildQueue, draw, giftToEvent } from './logic.js';
+import { aggregate, buildQueue, draw, findViewers, giftToEvent } from './logic.js';
 
 const TIKTOK_USERNAME = process.env.TIKTOK_USERNAME; // streamer's @handle, no "@"
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN; // required for admin endpoints
@@ -23,58 +23,70 @@ const LOG = path.join(DATA_DIR, 'events.jsonl'); // append-only source of truth
 // ---- state: rebuilt from the log on boot, so restarts lose nothing ----
 let events = [];
 if (fs.existsSync(LOG)) {
-  events = fs.readFileSync(LOG, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  // A crash mid-write can leave one partial line: skip it instead of refusing to boot.
+  for (const [n, line] of fs.readFileSync(LOG, 'utf8').split('\n').entries()) {
+    if (!line) continue;
+    try { events.push(JSON.parse(line)); } catch { console.error(`Skipping unreadable log line ${n + 1}`); }
+  }
 }
 const seen = new Set(events.map((e) => e.msgId).filter(Boolean));
-
-function currentState() {
-  let active = false;
-  let result = null;
-  for (const e of events) {
-    if (e.type === 'start') { active = true; result = null; }
-    if (e.type === 'stop') active = false;
-    if (e.type === 'draw') result = e;
-  }
-  return { active, result };
-}
 
 function append(e) {
   events.push(e);
   fs.appendFileSync(LOG, JSON.stringify(e) + '\n');
 }
 
-// Only count gifts between "start" and "stop", and only events after the latest "start".
-function giveawayEvents() {
-  const startIdx = events.map((e) => e.type).lastIndexOf('start');
-  return startIdx === -1 ? [] : events.slice(startIdx);
+// Everything derived from the log, recomputed only when the log has grown (the board is
+// asked for by every visitor every few seconds, so this keeps it cheap with thousands of gifts).
+let cache = { len: -1 };
+function derived() {
+  if (cache.len === events.length) return cache;
+  let startIdx = -1, drawIdx = -1, active = false, result = null;
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
+    if (e.type === 'start') { startIdx = i; drawIdx = -1; active = true; result = null; }
+    else if (e.type === 'stop') active = false;
+    else if (e.type === 'draw') { result = e; drawIdx = i; }
+  }
+  const rows = aggregate(startIdx === -1 ? [] : events.slice(startIdx), EXCLUDED);
+  cache = { len: events.length, startIdx, drawIdx, active, result, rows };
+  return cache;
+}
+const currentState = () => derived();
+
+const QUEUE_DONE_SHOWN = 100;
+function queueSnapshot() {
+  // Every unwritten ornament, plus the latest few written ones (keeps the payload small on a long giveaway).
+  const items = buildQueue(events);
+  const pending = items.filter((i) => !i.done);
+  const done = items.filter((i) => i.done);
+  return { items: [...pending, ...done.slice(-QUEUE_DONE_SHOWN)], pending: pending.length, done: done.length, now: Date.now() };
 }
 
-function queueSnapshot() {
-  const items = buildQueue(events);
-  return { items, pending: items.filter((i) => !i.done).length, done: items.filter((i) => i.done).length, now: Date.now() };
-}
+// Everyone in the draw pool, in the exact order the draw walks them (for the on-screen reveal).
+const poolOf = (rows) => rows.filter((r) => r.eligible && r.entries > 0).map((r) => ({ userId: r.userId, nickname: r.nickname ?? r.userId, entries: r.entries }));
 
 function snapshot() {
-  const board = aggregate(giveawayEvents(), EXCLUDED);
-  const { active, result } = currentState();
+  const { active, result, rows } = derived();
+  const entrants = rows.filter((r) => r.entries > 0);
+  const others = rows.filter((r) => r.entries === 0); // sent coins but no qualifying gift yet
   return {
     active,
     updatedAt: Date.now(),
-    totalCoins: board.reduce((s, r) => s + r.coins, 0),
-    totalEntries: board.filter((r) => r.eligible).reduce((s, r) => s + r.entries, 0),
-    viewers: board.length,
-    board: board.slice(0, 100),
-    // Everyone owed at least one ornament (full list, for shipping).
-    owed: board
-      .filter((r) => r.rewards.medium + r.rewards.large > 0)
-      .map((r) => ({ userId: r.userId, nickname: r.nickname, ...r.rewards })),
-    ornamentTotals: board.reduce(
+    totalCoins: rows.reduce((s, r) => s + r.coins, 0),
+    totalEntries: rows.filter((r) => r.eligible).reduce((s, r) => s + r.entries, 0),
+    viewers: rows.length,
+    entrants: entrants.length,
+    board: entrants.slice(0, 300).map(publicRow),
+    others: { count: others.length, top: others.slice(0, 15).map((r) => ({ nickname: r.nickname, coins: r.coins })) },
+    ornamentTotals: rows.reduce(
       (t, r) => ({ medium: t.medium + r.rewards.medium, large: t.large + r.rewards.large }),
       { medium: 0, large: 0 },
     ),
     winner: result ? { nickname: result.nickname, coins: result.coins, entries: result.entries, seed: result.seed, at: result.ts } : null,
   };
 }
+const publicRow = (r) => ({ rank: r.rank, userId: r.userId, nickname: r.nickname, coins: r.coins, rewards: r.rewards, entries: r.entries, eligible: r.eligible, odds: r.odds });
 
 // ---- TikTok listener ----
 // Shared status, shown on the admin page via /health.
@@ -178,23 +190,34 @@ const json = (res, code, body) => {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': ALLOW_ORIGIN,
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Cache-Control': 'no-store',
   });
-  res.end(JSON.stringify(body));
+  res.end(code === 204 ? undefined : JSON.stringify(body));
 };
+const MAX_BODY = 20_000;
 const readBody = (req) => new Promise((resolve) => {
   let s = '';
-  req.on('data', (c) => (s += c));
-  req.on('end', () => { try { resolve(JSON.parse(s || '{}')); } catch { resolve({}); } });
+  req.on('data', (c) => { s += c; if (s.length > MAX_BODY) { req.destroy(); resolve({}); } });
+  req.on('end', () => { try { const b = JSON.parse(s || '{}'); resolve(b && typeof b === 'object' ? b : {}); } catch { resolve({}); } });
 });
+const cleanText = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : undefined);
 
-http.createServer(async (req, res) => {
-  if (req.method === 'OPTIONS') return json(res, 204, {});
+async function handle(req, res) {
+  if (req.method === 'OPTIONS') return json(res, 204);
   const url = new URL(req.url, 'http://x');
 
+  // ---- public ----
   if (req.method === 'GET' && url.pathname === '/leaderboard') return json(res, 200, snapshot());
   if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, tiktok, now: Date.now() });
+  if (req.method === 'GET' && url.pathname === '/lookup') {
+    // "Find yourself": searches EVERYONE (not just the ranked board), at most 5 matches.
+    const q = (url.searchParams.get('q') ?? '').slice(0, 40);
+    if (q.trim().length < 2) return json(res, 400, { error: 'type at least 2 letters' });
+    return json(res, 200, { matches: findViewers(derived().rows, q, 5).map(publicRow), now: Date.now() });
+  }
 
+  // ---- admin (password required) ----
   if (req.method === 'POST' && url.pathname.startsWith('/admin/')) {
     if (req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) {
       await new Promise((r) => setTimeout(r, 1000)); // slow down password guessing
@@ -203,33 +226,71 @@ http.createServer(async (req, res) => {
     const body = await readBody(req);
     const action = url.pathname.slice('/admin/'.length);
     const ts = Date.now();
+    const st = derived();
 
     if (action === 'check') return json(res, 200, { ok: true });
     if (action === 'queue') return json(res, 200, queueSnapshot());
+    if (action === 'viewers') {
+      // Everyone who has sent a gift, for the "add or remove a gift" picker.
+      const list = st.rows.map((r) => ({ userId: r.userId, nickname: r.nickname ?? r.userId, coins: r.coins, entries: r.entries }));
+      list.sort((a, b) => String(a.nickname).localeCompare(String(b.nickname), undefined, { sensitivity: 'base' }));
+      return json(res, 200, { viewers: list });
+    }
     if (action === 'ornament') {
       // Olivia ticks an ornament as written (done: true) or un-ticks it (done: false).
-      const item = buildQueue(events).find((i) => i.id === body.itemId);
+      const item = buildQueue(events).find((i) => i.id === String(body.itemId));
       if (!item) return json(res, 404, { error: 'that ornament is no longer in the queue' });
       if (item.done !== !!body.done) append({ type: 'ornament_check', ts, itemId: item.id, done: !!body.done });
       return json(res, 200, queueSnapshot());
     }
-    if (action === 'start') { append({ type: 'start', ts }); return json(res, 200, snapshot()); }
-    if (action === 'stop') { append({ type: 'stop', ts }); return json(res, 200, snapshot()); }
-    if (action === 'adjust') {
-      // Manual correction: coins = value of ONE gift to add (positive) or to remove (negative).
-      if (!body.userId || !Number.isFinite(body.coins)) return json(res, 400, { error: 'userId and coins required' });
-      append({ type: 'adjust', ts, userId: String(body.userId), nickname: body.nickname, coins: body.coins, note: body.note });
+    if (action === 'start') {
+      // Starting wipes the board, so refuse while one is running (guards double-taps and two admins).
+      if (st.active) return json(res, 409, { error: 'A giveaway is already running. Stop it first if you really want a new one.' });
+      append({ type: 'start', ts });
       return json(res, 200, snapshot());
     }
+    if (action === 'stop') {
+      if (st.active) append({ type: 'stop', ts });
+      return json(res, 200, snapshot());
+    }
+    if (action === 'adjust') {
+      // Manual correction: coins = value of ONE gift to add (positive) or to remove (negative).
+      const coins = Number(body.coins);
+      const userId = cleanText(String(body.userId ?? ''), 64);
+      if (!userId || !Number.isFinite(coins) || coins === 0 || Math.abs(coins) > 10_000_000) {
+        return json(res, 400, { error: 'userId and a gift value between 1 and 10,000,000 coins are required' });
+      }
+      append({ type: 'adjust', ts, userId, nickname: cleanText(body.nickname, 80) ?? userId, coins: Math.trunc(coins), note: cleanText(body.note, 200) });
+      return json(res, 200, snapshot());
+    }
+    if (action === 'drawinfo') {
+      // Everything needed to replay the on-screen reveal of the draw that already happened.
+      if (!st.result) return json(res, 404, { error: 'No winner has been drawn yet.' });
+      const rowsThen = aggregate(events.slice(st.startIdx, st.drawIdx), EXCLUDED);
+      const w = st.result;
+      return json(res, 200, { winner: { userId: w.userId, nickname: w.nickname, coins: w.coins, entries: w.entries }, seed: w.seed, pick: w.pick, total: w.total, pool: poolOf(rowsThen), at: w.ts });
+    }
     if (action === 'draw') {
-      if (currentState().active) return json(res, 409, { error: 'stop the giveaway before drawing' });
-      const seed = body.seed ?? randomBytes(16).toString('hex');
-      const r = draw(aggregate(giveawayEvents(), EXCLUDED), seed);
-      if (!r) return json(res, 400, { error: 'nobody has any entries yet (a single gift must be 1,000+ coins to earn an ornament and entries)' });
+      if (st.active) return json(res, 409, { error: 'Stop the giveaway before drawing.' });
+      if (st.result && body.force !== true) return json(res, 409, { error: `A winner was already drawn: ${st.result.nickname}.`, winner: { nickname: st.result.nickname } });
+      const seed = cleanText(body.seed, 100) ?? randomBytes(16).toString('hex');
+      const r = draw(st.rows, seed);
+      if (!r) return json(res, 400, { error: 'Nobody has any entries yet (a single gift must be 1,000+ coins to earn an ornament and entries).' });
       append({ type: 'draw', ts, userId: r.winner.userId, nickname: r.winner.nickname, coins: r.winner.coins, entries: r.winner.entries, seed, pick: r.pick, total: r.total });
-      return json(res, 200, { winner: r.winner, seed, pick: r.pick, total: r.total });
+      return json(res, 200, { winner: publicRow(r.winner), seed, pick: r.pick, total: r.total, pool: poolOf(st.rows) });
     }
     return json(res, 404, { error: 'unknown action' });
   }
   json(res, 404, { error: 'not found' });
+}
+
+http.createServer((req, res) => {
+  handle(req, res).catch((err) => {
+    console.error('Request failed:', req.method, req.url, String(err?.message ?? err).slice(0, 200));
+    if (!res.headersSent) json(res, 500, { error: 'server error' }); else res.end();
+  });
 }).listen(PORT, () => console.log(`API on :${PORT}`));
+
+// Never let one bad event take the whole server (and the giveaway) down.
+process.on('uncaughtException', (err) => console.error('Uncaught:', String(err?.stack ?? err).slice(0, 400)));
+process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', String(err?.message ?? err).slice(0, 200)));

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { rewards, giftEntries, aggregate, draw, giftToEvent, buildQueue } from '../server/logic.js';
+import { rewards, giftEntries, aggregate, draw, giftToEvent, buildQueue, findViewers } from '../server/logic.js';
 
 const gift = (userId, coins, nickname = userId) => ({ type: 'gift', userId, nickname, coins });
 const orn = (r) => `${r.large}L ${r.medium}M`;
@@ -166,4 +166,19 @@ test('queue: negative adjust never cancels an ornament that is already written',
   const q = buildQueue(log);
   assert.equal(q.length, 1);
   assert.equal(q[0].done, true);
+});
+
+// ---- ranking and search ----
+test('only viewers with entries get a rank; others are unranked but still listed', () => {
+  const rows = aggregate([gift('a', 600), gift('b', 3000), gift('c', 1000), gift('d', 900)]);
+  assert.deepEqual(rows.map((r) => [r.userId, r.rank]), [['b', 1], ['c', 2], ['d', null], ['a', null]]);
+});
+
+test('findViewers: case-insensitive partial match, ranked viewers first, limit, min 2 letters', () => {
+  const rows = aggregate([gift('1', 5000, 'Matt Smith'), gift('2', 700, 'matty'), gift('3', 2000, 'MATTHEW'), gift('4', 9000, 'Zed')]);
+  assert.deepEqual(findViewers(rows, 'MATT').map((r) => r.userId), ['1', '3', '2']);
+  assert.deepEqual(findViewers(rows, 'matt', 2).map((r) => r.userId), ['1', '3']);
+  assert.deepEqual(findViewers(rows, 'm'), []); // too short
+  assert.deepEqual(findViewers(rows, 'nobody'), []);
+  assert.deepEqual(findViewers(rows, '  zed ').map((r) => r.userId), ['4']);
 });

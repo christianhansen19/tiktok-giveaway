@@ -86,10 +86,11 @@ export function aggregate(events, excluded = new Set()) {
   // Excluded users (streamer, mods, bots) still appear on the board but are not in the draw pool.
   const poolEntries = viewers.filter((v) => v.eligible).reduce((s, v) => s + v.entries, 0);
 
+  let nextRank = 1;
   return viewers
     .sort((a, b) => b.entries - a.entries || b.coins - a.coins)
-    .map((v, i) => ({
-      rank: i + 1,
+    .map((v) => ({
+      rank: v.entries > 0 ? nextRank++ : null, // only viewers with entries are ranked
       userId: v.userId,
       nickname: v.nickname,
       coins: v.coins,
@@ -98,6 +99,17 @@ export function aggregate(events, excluded = new Set()) {
       eligible: v.eligible,
       odds: v.eligible && poolEntries > 0 ? v.entries / poolEntries : 0,
     }));
+}
+
+// Find viewers by (part of) their display name, for the public "find yourself" search.
+// Viewers with entries come first, then by coins. Returns at most `limit` rows.
+export function findViewers(rows, query, limit = 5) {
+  const q = String(query ?? '').trim().toLowerCase();
+  if (q.length < 2) return [];
+  return rows
+    .filter((r) => String(r.nickname ?? r.userId).toLowerCase().includes(q))
+    .sort((a, b) => b.entries - a.entries || b.coins - a.coins)
+    .slice(0, limit);
 }
 
 // Deterministic PRNG from a string seed, so the draw can be re-verified on stream.

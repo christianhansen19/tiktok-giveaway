@@ -105,9 +105,10 @@
 
     <section class="card">
       <h2>Pick the winner</h2>
-      <p class="hint">Stop the giveaway first. One winner, weighted by entries. The result is saved and can't be redone.</p>
-      <div class="actions" style="grid-template-columns:1fr"><button class="btn" id="draw">🎁 Draw winner</button></div>
+      <p class="hint">Stop the giveaway first. The draw show picks the real winner on screen, with confetti, so it can be screen-recorded for Discord. One winner, weighted by entries. It can't be redone, but the reveal can be replayed.</p>
       <div class="result" id="drawOut" hidden></div>
+      <div class="actions" style="grid-template-columns:1fr"><a class="btn" id="showLink" href="draw.html" style="display:grid;place-items:center;text-decoration:none">🎬 Open the draw show</a></div>
+      <p class="hint" style="margin-top:10px">Want to rehearse first? The draw show has a practice run that doesn't pick anyone.</p>
     </section>
 
     <section class="card">
@@ -115,6 +116,11 @@
       <p class="hint">For a gift the tracker missed or counted twice. Enter the value of <b>one gift</b>: it adds that gift's ornaments and entries. Use a minus sign to remove a gift that was counted by mistake.</p>
       <label for="uid">Viewer</label>
       <select id="uid"></select>
+      <div id="newWrap" class="hidden">
+        <label for="newName">Their TikTok name</label>
+        <input id="newName" type="text" maxlength="80" placeholder="Name as it should appear">
+        <p class="hint" style="margin-top:6px">Use this only for someone who isn't in the list (for example a gift sent while the tracker was offline). If they send another gift later, it will show as a separate row.</p>
+      </div>
       <label for="coins">Gift value in coins</label>
       <input id="coins" type="number" inputmode="numeric" placeholder="e.g. 1500, or -1500 to remove">
       <label for="note">Note (optional)</label>
@@ -157,7 +163,8 @@
       try {
         const h = await (await fetch(API + '/health', { cache: 'no-store' })).json();
         const t = h.tiktok, c = $('conn');
-        if (!t?.connected) { c.className = 'hint conn bad'; c.textContent = `⚪ Not connected. Waiting for @${t?.username ?? 'her'} to go live (it keeps checking automatically).`; }
+        if (!t?.username) { c.className = 'hint conn bad'; c.textContent = '⚪ The TikTok listener is turned off on the server.'; }
+        else if (!t.connected) { c.className = 'hint conn bad'; c.textContent = `⚪ Not connected. Waiting for @${t.username} to go live (it keeps checking automatically).`; }
         else {
           const age = Math.max(0, Math.round((h.now - t.lastEventAt) / 1000));
           const quiet = age > 90;
@@ -165,15 +172,28 @@
           c.textContent = quiet ? `⚠️ Connected but quiet for ${Math.round(age / 60)} min. It will reconnect on its own.` : `🟢 Connected to @${t.username}'s live · last activity ${age}s ago`;
         }
       } catch { $('conn').className = 'hint conn bad'; $('conn').textContent = '⚠️ Can’t check the TikTok connection.'; }
-      $('start').disabled = false; $('stop').disabled = !d.active;
-      $('draw').disabled = d.active || !(d.totalEntries > 0);
-      const cur = $('uid').value;
-      $('uid').innerHTML = d.board.length
-        ? d.board.map((r) => `<option value="${r.userId}" data-n="${encodeURIComponent(r.nickname ?? '')}">${(r.nickname ?? r.userId).replace(/</g, '&lt;')} (${fmt.format(r.coins)} coins · ${fmt.format(r.entries)} entries)</option>`).join('')
-        : '<option value="">No supporters yet</option>';
-      if (cur) $('uid').value = cur;
+      // Start wipes the board, so it's only available when nothing is running.
+      $('start').disabled = d.active; $('stop').disabled = !d.active;
+      $('start').title = d.active ? 'Stop the current giveaway first' : '';
+      $('drawOut').hidden = !d.winner;
+      if (d.winner) $('drawOut').textContent = `🏆 Winner: ${d.winner.nickname} · ${fmt.format(d.winner.entries ?? 0)} entries · seed ${d.winner.seed}`;
+      $('showLink').textContent = d.winner ? '🎬 Replay the reveal' : '🎬 Open the draw show';
     } catch { $('stats').textContent = 'Can’t reach the server.'; }
   }
+
+  // Everyone who has sent a gift (not just the ranked board), for "add or remove a gift".
+  async function loadViewers() {
+    try {
+      const { viewers } = await call('viewers');
+      const cur = $('uid').value;
+      $('uid').innerHTML = (viewers.length ? '<option value="">Choose a viewer…</option>' : '<option value="">No supporters yet</option>')
+        + viewers.map((v) => `<option value="${esc(v.userId)}" data-n="${encodeURIComponent(v.nickname ?? '')}">${esc(v.nickname ?? v.userId)} (${fmt.format(v.coins)} coins · ${fmt.format(v.entries)} ${v.entries === 1 ? 'entry' : 'entries'})</option>`).join('')
+        + '<option value="__new__">➕ Someone not in this list…</option>';
+      if (cur && [...$('uid').options].some((o) => o.value === cur)) $('uid').value = cur;
+      $('newWrap').classList.toggle('hidden', $('uid').value !== '__new__');
+    } catch { /* keep the last list */ }
+  }
+  $('uid').addEventListener('change', () => { $('newWrap').classList.toggle('hidden', $('uid').value !== '__new__'); if ($('uid').value === '__new__') $('newName').focus(); });
 
   function toast(text, kind) {
     const t = $('toast');
@@ -207,13 +227,14 @@
   function renderQueue() {
     // Skip the redraw when nothing visible changed. Re-rendering every poll would replace the
     // buttons under her finger and could swallow a tap.
-    const sig = qTab + '|' + queue.items.map((i) => i.id + (i.done ? '1' : '0')).join(',');
+    const sig = qTab + '|' + queue.pending + '|' + queue.done + '|' + queue.items.map((i) => i.id + (i.done ? '1' : '0')).join(',');
     if (sig === lastSig) return;
     lastSig = sig;
     const pending = queue.items.filter((i) => !i.done);
     const done = queue.items.filter((i) => i.done);
-    $('nTodo').textContent = pending.length;
-    $('nDone').textContent = done.length;
+    // Totals come from the server (the list only carries the latest 100 written ones).
+    $('nTodo').textContent = queue.pending ?? pending.length;
+    $('nDone').textContent = queue.done ?? done.length;
     $('tabTodo').classList.toggle('on', qTab === 'todo');
     $('tabDone').classList.toggle('on', qTab === 'done');
     $('qPill').className = 'pill ' + (pending.length ? 'live' : 'done');
@@ -253,9 +274,10 @@
   async function setDone(id, done) {
     const it = queue.items.find((i) => i.id === id);
     if (!it || it.done === done) return;
-    it.done = done; renderQueue(); // optimistic
+    const shift = (dir) => { queue.pending -= dir; queue.done += dir; };
+    it.done = done; shift(done ? 1 : -1); renderQueue(); // optimistic
     try { applyQueue(await call('ornament', { itemId: id, done })); }
-    catch (e) { it.done = !done; renderQueue(); toast(e.message, 'err'); loadQueue(); }
+    catch (e) { it.done = !done; shift(done ? -1 : 1); renderQueue(); toast(e.message, 'err'); loadQueue(); }
   }
 
   $('queueCard').addEventListener('click', (e) => {
@@ -269,8 +291,9 @@
   async function enter() {
     $('login').classList.add('hidden');
     $('panel').classList.remove('hidden');
-    await Promise.all([refresh(), loadQueue()]);
+    await Promise.all([refresh(), loadQueue(), loadViewers()]);
     setInterval(refresh, 7000);
+    setInterval(loadViewers, 30000);
     setInterval(loadQueue, 4000);
     setInterval(refreshAgo, 30000);
   }
@@ -290,28 +313,28 @@
   $('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('signin').click(); });
 
   $('start').onclick = () => {
-    const n = queue.items.filter((i) => !i.done).length;
+    const n = queue.pending ?? queue.items.filter((i) => !i.done).length;
     const warn = n ? `\n\n⚠️ ${n} ornament${n === 1 ? ' is' : 's are'} still NOT written. They will disappear from the queue (the saved log keeps them).` : '';
     if (!confirm('Start a NEW giveaway? Everyone’s coins reset to zero.' + warn)) return;
     run(async () => { await call('start'); $('drawOut').hidden = true; toast('Giveaway started.', 'ok'); });
   };
   $('stop').onclick = () => run(async () => { await call('stop'); toast('Giveaway stopped.', 'ok'); });
-  $('draw').onclick = () => {
-    if (!confirm('Draw the winner now? This is saved and can’t be undone.')) return;
-    run(async () => {
-      const r = await call('draw');
-      $('drawOut').hidden = false;
-      $('drawOut').textContent = `🏆 ${r.winner.nickname} · ${fmt.format(r.winner.entries)} entries of ${fmt.format(r.total)} · ${(r.winner.odds * 100).toFixed(1)}% chance. Seed: ${r.seed}`;
-    });
-  };
   $('adjust').onclick = () => run(async () => {
     const opt = $('uid').selectedOptions[0];
-    if (!opt || !opt.value) throw new Error('No viewer selected');
+    if (!opt || !opt.value) throw new Error('Choose a viewer first');
+    let userId = opt.value, nickname = decodeURIComponent(opt.dataset.n ?? '');
+    if (userId === '__new__') {
+      nickname = $('newName').value.trim();
+      if (!nickname) throw new Error('Type their TikTok name');
+      userId = 'manual:' + nickname.toLowerCase();
+    }
     const coins = Number($('coins').value);
-    if (!Number.isFinite(coins) || coins === 0) throw new Error('Enter a coin amount');
-    await call('adjust', { userId: opt.value, nickname: decodeURIComponent(opt.dataset.n), coins, note: $('note').value });
-    $('coins').value = ''; $('note').value = '';
-    toast('Adjustment saved.', 'ok');
+    if (!Number.isFinite(coins) || coins === 0) throw new Error('Enter the gift value in coins');
+    if (coins < 0 && !confirm(`Remove a ${fmt.format(-coins)}-coin gift from ${nickname}?`)) return;
+    await call('adjust', { userId, nickname, coins: Math.trunc(coins), note: $('note').value });
+    $('coins').value = ''; $('note').value = ''; $('newName').value = '';
+    toast(coins > 0 ? `Added a ${fmt.format(coins)}-coin gift for ${nickname}.` : `Removed a ${fmt.format(-coins)}-coin gift from ${nickname}.`, 'ok');
+    loadViewers(); loadQueue();
   });
 
   if (pw) enter();

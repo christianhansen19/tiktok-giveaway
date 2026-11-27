@@ -21,7 +21,10 @@ curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -d '{"userId":"123","coins"
 Gifts only count between `start` and `stop`. The draw seed is returned and stored so the result can be re-verified.
 
 ## Ornament queue (admin page)
-Every ornament earned (one per ornament, oldest first) appears in the admin page's **Ornament queue**, so Olivia can write each name and tick it off. Ticks are saved in the server log, so they survive restarts and show on every device. Pressing Start for a new giveaway warns if ornaments are still unwritten. Endpoints: `POST /admin/queue` and `POST /admin/ornament {itemId, done}` (password required).
+Every ornament earned (one per ornament, oldest first) appears in the admin page's **Ornament queue**, so Olivia can write each name and tick it off. Ticks are saved in the server log, so they survive restarts and show on every device. Pressing Start for a new giveaway warns if ornaments are still unwritten. Endpoints: `POST /admin/queue` and `POST /admin/ornament {itemId, done}` (password required). Public: `GET /leaderboard` (viewers with entries, plus a short list of others), `GET /lookup?q=name` (search everyone), `GET /health`.
+
+## Draw show (`docs/draw.html`)
+A recordable reveal of the real draw for Discord. Stop the giveaway, open the draw show from the admin page, start a screen recording, press **Clean view**, then **Space**. The server picks the winner (saved, can't be redone; `POST /admin/draw` with `{"force": true}` overrides in an emergency). The page shows every entry as a slice of a bar, sweeps a pointer across it and lands on the server's exact pick, then recomputes the pick from the seed in the browser and shows "✓ Verified". **Replay the reveal** (`POST /admin/drawinfo`) re-shows the same result for another take. A **Practice run** uses current entries and a random seed, is watermarked PRACTICE, and picks nobody.
 
 ## Leaderboard page
 `docs/index.html` is static. Set `API` near the bottom to your server URL, then enable GitHub Pages on the `/docs` folder.

@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#dcc1cd">
+<title>The Draw</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Mrs+Saint+Delafield&family=Shrikhand&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+  main { max-width: 920px; padding-top: 16px; }
+  [hidden] { display: none !important; }
+
+  /* ---------- stage (what gets recorded) ---------- */
+  .stage { position: relative; overflow: hidden; text-align: center; padding: 20px 16px 26px; }
+  .stage .script { font-size: clamp(2.8rem, 10vw, 4.4rem); }
+  .stage .title { font-size: clamp(2.6rem, 11vw, 5.2rem); margin-top: -4px; }
+  .chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 16px 0 6px; }
+  .chip { font-size: clamp(.8rem, 3.4vw, 1rem); padding: 5px 12px; border: 2px solid var(--ink); border-radius: 999px; background: var(--paper); box-shadow: 2px 2px 0 var(--ink); font-weight: 800; }
+  .chip.gold { background: var(--gold); }
+
+  .barwrap { position: relative; margin: 54px 4px 10px; }
+  #bar { display: block; width: 100%; height: 70px; border: 3px solid var(--ink); border-radius: 14px; background: var(--paper); box-shadow: var(--sticker); }
+  .pointer { position: absolute; top: -38px; left: 0; transform: translateX(-50%); width: 0; height: 0; pointer-events: none; will-change: left; }
+  .pointer::before { content: ''; position: absolute; left: -16px; top: 0; border-left: 16px solid transparent; border-right: 16px solid transparent; border-top: 26px solid var(--ink); }
+  .pointer::after { content: ''; position: absolute; left: -11px; top: 3px; border-left: 11px solid transparent; border-right: 11px solid transparent; border-top: 18px solid var(--gold); }
+  .pointer i { position: absolute; left: -2px; top: 26px; width: 4px; height: 92px; background: var(--ink); border-radius: 2px; }
+  .scale { display: flex; justify-content: space-between; font-size: .8rem; font-weight: 700; color: var(--muted); margin: 6px 4px 0; font-variant-numeric: tabular-nums; }
+
+  .current { margin: 22px auto 0; max-width: 620px; padding: 16px; border: 3px solid var(--ink); border-radius: 18px; background: var(--paper); box-shadow: var(--sticker); min-height: 128px; display: grid; place-items: center; }
+  .current .label { font: 800 .75rem/1 var(--sans); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .current .who { font: 400 clamp(1.7rem, 7vw, 3rem)/1.15 var(--display); margin: 8px 0 4px; overflow-wrap: anywhere; }
+  .current .sub { font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .current.win { background: var(--gold); animation: pop .6s cubic-bezier(.2, 1.6, .4, 1); }
+  .current.win .label, .current.win .sub { color: var(--ink); }
+  @keyframes pop { 0% { transform: scale(.85); } 100% { transform: scale(1); } }
+  .current .winner-script { display: block; font-family: var(--script); font-size: clamp(2.2rem, 8vw, 3.2rem); line-height: .9; text-transform: none; letter-spacing: 0; color: var(--ink); }
+
+  .verify { margin-top: 14px; font-size: .85rem; font-weight: 700; color: var(--muted); overflow-wrap: anywhere; min-height: 1.3em; }
+  .verify.ok { color: var(--ok); }
+  .verify.bad { color: #b3122f; }
+
+  .countdown { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+  .countdown span { font: 400 clamp(6rem, 30vw, 12rem)/1 var(--display); color: var(--paper); -webkit-text-stroke: 3px var(--ink); paint-order: stroke fill; text-shadow: 6px 6px 0 var(--ink); animation: cd 1s ease-out both; }
+  @keyframes cd { 0% { transform: scale(1.6); opacity: 0; } 25% { transform: scale(1); opacity: 1; } 80% { opacity: 1; } 100% { transform: scale(.8); opacity: 0; } }
+
+  .watermark { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; font: 400 clamp(3rem, 16vw, 8rem)/1 var(--display); color: rgba(20, 9, 15, .08); transform: rotate(-14deg); letter-spacing: .05em; }
+
+  /* ---------- controls (hidden in clean view) ---------- */
+  .controls .actions { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 12px; }
+  @media (min-width: 560px) { .controls .actions.two { grid-template-columns: 1fr 1fr; } }
+  .controls .btn { width: 100%; }
+  .msg { margin-top: 10px; font-weight: 600; color: var(--muted); }
+  .msg.err { color: #b3122f; }
+  .row-btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+  .row-btns .btn { flex: 1 1 160px; min-height: 44px; font-size: .9rem; }
+  body.clean .controls, body.clean .backlink { display: none; }
+  body.clean main { padding-top: 24px; }
+  .hint-toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); padding: 8px 14px; border-radius: 10px; background: var(--ink); color: #fff; font-weight: 700; font-size: .85rem; transition: opacity .4s; }
+  .backlink { text-align: center; margin-top: 16px; font-weight: 700; }
+  .backlink a { color: var(--ink); }
+
+  #confetti { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 50; }
+</style>
+</head>
+<body>
+<canvas id="confetti" aria-hidden="true"></canvas>
+<main>
+  <section class="card stage" id="stage" aria-live="polite">
+    <div class="watermark" id="watermark" hidden>PRACTICE</div>
+    <p class="script">olivia the og</p>
+    <h1 class="title">The Draw</h1>
+    <div class="chips">
+      <span class="chip gold">$100 gift card</span>
+      <span class="chip" id="chipEntries">– entries</span>
+      <span class="chip" id="chipPeople">– people</span>
+    </div>
+
+    <div class="barwrap">
+      <canvas id="bar" aria-label="Every entry in the draw, one slice per person, sized by their entries"></canvas>
+      <div class="pointer" id="pointer"><i></i></div>
+    </div>
+    <div class="scale"><span>Ticket 1</span><span id="scaleEnd">Ticket –</span></div>
+
+    <div class="current" id="current">
+      <div>
+        <div class="label" id="curLabel">Every entry is a ticket</div>
+        <div class="who" id="curWho">Ready?</div>
+        <div class="sub" id="curSub">Bigger slice = more entries = better odds</div>
+      </div>
+    </div>
+    <div class="verify" id="verify"></div>
+    <div class="countdown" id="countdown" hidden></div>
+  </section>
+
+  <section class="card controls" id="controls">
+    <div id="signinBox" hidden>
+      <h2>Sign in</h2>
+      <p class="muted" style="margin:0">The real draw needs the admin password. A practice run works without it.</p>
+      <label for="pw">Password</label>
+      <input id="pw" type="password" autocomplete="current-password">
+      <div class="actions"><button class="btn" id="signin" type="button">Sign in</button></div>
+    </div>
+
+    <div class="actions two">
+      <button class="btn" id="realBtn" type="button" disabled>🎁 Draw the real winner</button>
+      <button class="btn alt" id="practiceBtn" type="button">Practice run</button>
+    </div>
+    <div class="msg" id="msg" role="status" aria-live="polite">Loading…</div>
+    <div class="row-btns">
+      <button class="btn alt" id="soundBtn" type="button" aria-pressed="true">🔊 Sound on</button>
+      <button class="btn alt" id="cleanBtn" type="button">🎥 Clean view for recording</button>
+    </div>
+    <p class="muted" style="margin:12px 0 0;font-size:.9rem">Tip: start your screen recording, press <b>Clean view</b> (this panel hides; press <b>Esc</b> to bring it back), then press <b>Space</b> to start.</p>
+  </section>
+  <p class="backlink"><a href="admin.html">← Back to admin</a></p>
+</main>
+<div class="hint-toast" id="hintToast" hidden></div>
+
+<script>
+  const API = 'https://giveaway-api-production-d2ee64f6.up.railway.app';
+  const $ = (id) => document.getElementById(id);
+  const fmt = new Intl.NumberFormat();
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const PALETTE = ['#b5547f', '#e8b84a', '#d9a8bf', '#8e3b62', '#f6e9ee', '#c97a9c', '#f3d48a', '#efc9d8'];
+
+  let pw = null;
+  try { pw = sessionStorage.getItem('gw_pw'); } catch {}
+  let soundOn = true;
+  try { soundOn = localStorage.getItem('gw_sound') !== 'off'; } catch {}
+  let state = null; // public leaderboard snapshot
+  let running = false;
+  let lastShow = null; // what the stage currently shows (for redraw on resize)
+  let showed = false;  // once a show has run, keep its final frame on screen
+
+  // ---------- server ----------
+  async function call(action, body) {
+    const r = await fetch(`${API}/admin/${action}`, { method: 'POST', headers: { Authorization: `Bearer ${pw}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body ?? {}) });
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401) throw new Error('Wrong password');
+    if (!r.ok) throw new Error(data.error || `Error ${r.status}`);
+    return data;
+  }
+  async function loadState() {
+    try {
+      state = await (await fetch(API + '/leaderboard', { cache: 'no-store' })).json();
+    } catch { state = null; }
+    updateControls();
+    if (!running && !showed) { const { segs, total } = showPool(practicePool(), false); lastShow = { segs, total, practice: false, highlight: null, frac: 0 }; }
+  }
+  const practicePool = () => (state?.board ?? []).filter((r) => r.eligible && r.entries > 0).map((r) => ({ userId: r.userId, nickname: r.nickname ?? r.userId, entries: r.entries }));
+
+  function updateControls() {
+    const real = $('realBtn');
+    $('signinBox').hidden = !!pw;
+    if (running) { real.disabled = true; $('practiceBtn').disabled = true; return; }
+    $('practiceBtn').disabled = practicePool().length === 0;
+    if (!state) { real.disabled = true; return say('Can’t reach the server right now. Retrying…', true); }
+    if (state.winner) {
+      real.disabled = !pw; real.textContent = '↻ Replay the reveal';
+      return say(pw ? `${state.winner.nickname} already won. You can replay the reveal as often as you like (it doesn’t pick again).` : 'Sign in to replay the reveal.');
+    }
+    real.textContent = '🎁 Draw the real winner';
+    if (state.active) { real.disabled = true; return say('The giveaway is still running. Stop it on the admin page before drawing. You can do a practice run now.'); }
+    if (!(state.totalEntries > 0)) { real.disabled = true; return say('Nobody has any entries yet.'); }
+    real.disabled = !pw;
+    say(pw ? `Ready: ${fmt.format(state.totalEntries)} entries from ${fmt.format(practicePool().length)} people. Do a practice run first if you like.` : 'Sign in to draw the real winner.');
+  }
+  function say(text, err) { $('msg').textContent = text; $('msg').className = 'msg' + (err ? ' err' : ''); }
+
+  // ---------- fairness: the same math the server uses ----------
+  async function pickFromSeed(seed, total) {
+    const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${seed}:0`));
+    const dv = new DataView(h);
+    const n = dv.getUint16(0) * 2 ** 32 + dv.getUint32(2); // first 6 bytes, big-endian
+    return (n / 2 ** 48) * total;
+  }
+  function segments(pool) {
+    let acc = 0;
+    return pool.map((p, i) => { const s = { ...p, i, from: acc, to: acc + p.entries }; acc += p.entries; return s; });
+  }
+  function segAt(segs, ticket) { // binary search: which slice holds this position
+    let lo = 0, hi = segs.length - 1;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (ticket < segs[mid].to) hi = mid; else lo = mid + 1; }
+    return segs[lo];
+  }
+
+  // ---------- drawing the bar ----------
+  function drawBar(segs, total, highlight = null) {
+    const c = $('bar'), dpr = Math.min(devicePixelRatio || 1, 2);
+    const w = c.clientWidth, h = c.clientHeight;
+    c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    const g = c.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    if (!total) { g.fillStyle = '#6b5560'; g.font = '700 14px Inter, sans-serif'; g.textAlign = 'center'; g.fillText('No entries yet', w / 2, h / 2 + 5); return; }
+    for (const s of segs) {
+      const x0 = (s.from / total) * w, x1 = (s.to / total) * w;
+      g.globalAlpha = highlight && s.i !== highlight.i ? 0.22 : 1;
+      g.fillStyle = PALETTE[s.i % PALETTE.length];
+      g.fillRect(x0, 0, Math.max(x1 - x0, 0.6), h);
+      if (x1 - x0 > 3) { g.globalAlpha = highlight && s.i !== highlight.i ? 0.15 : 0.55; g.fillStyle = '#14090f'; g.fillRect(x1 - 1, 0, 1, h); }
+      if (x1 - x0 > 70 && (!highlight || s.i === highlight.i)) { // label wide slices
+        g.globalAlpha = 1; g.fillStyle = PALETTE[s.i % PALETTE.length] === '#8e3b62' || PALETTE[s.i % PALETTE.length] === '#b5547f' ? '#fff' : '#14090f';
+        g.font = '800 13px Inter, sans-serif'; g.textAlign = 'center';
+        const name = s.nickname.length > 14 ? s.nickname.slice(0, 13) + '…' : s.nickname;
+        g.fillText(name, (x0 + x1) / 2, h / 2 + 5);
+      }
+    }
+    g.globalAlpha = 1;
+  }
+  function setPointer(frac) { $('pointer').style.left = `${Math.min(Math.max(frac, 0), 1) * 100}%`; }
+
+  function showPool(pool, practice) {
+    const segs = segments(pool);
+    const total = segs.length ? segs[segs.length - 1].to : 0;
+    $('chipEntries').textContent = `${fmt.format(total)} ${total === 1 ? 'entry' : 'entries'}`;
+    $('chipPeople').textContent = `${fmt.format(pool.length)} ${pool.length === 1 ? 'person' : 'people'}`;
+    $('scaleEnd').textContent = `Ticket ${fmt.format(total || 0)}`;
+    $('watermark').hidden = !practice;
+    drawBar(segs, total);
+    setPointer(0);
+    return { segs, total };
+  }
+
+  // ---------- sound ----------
+  let ac = null;
+  function audio() { if (!soundOn) return null; ac ??= new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); return ac; }
+  function tick() {
+    const a = audio(); if (!a) return;
+    const o = a.createOscillator(), gn = a.createGain();
+    o.type = 'triangle'; o.frequency.value = 1400;
+    gn.gain.setValueAtTime(0.06, a.currentTime); gn.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.05);
+    o.connect(gn).connect(a.destination); o.start(); o.stop(a.currentTime + 0.06);
+  }
+  function chime() {
+    const a = audio(); if (!a) return;
+    [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => {
+      const o = a.createOscillator(), gn = a.createGain(), t = a.currentTime + i * 0.11;
+      o.type = 'triangle'; o.frequency.value = f;
+      gn.gain.setValueAtTime(0.0001, t); gn.gain.exponentialRampToValueAtTime(0.12, t + 0.02); gn.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+      o.connect(gn).connect(a.destination); o.start(t); o.stop(t + 1);
+    });
+  }
+  function beep(f = 660) {
+    const a = audio(); if (!a) return;
+    const o = a.createOscillator(), gn = a.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    gn.gain.setValueAtTime(0.1, a.currentTime); gn.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.25);
+    o.connect(gn).connect(a.destination); o.start(); o.stop(a.currentTime + 0.3);
+  }
+
+  // ---------- confetti: ornaments, stars and snowflakes in Olivia's colors ----------
+  const cv = $('confetti'), cx = cv.getContext('2d');
+  let parts = [], confettiOn = false;
+  function sizeConfetti() { const d = Math.min(devicePixelRatio || 1, 2); cv.width = innerWidth * d; cv.height = innerHeight * d; cx.setTransform(d, 0, 0, d, 0, 0); }
+  const COLORS = ['#b5547f', '#e8b84a', '#fbf7f8', '#d9a8bf', '#8e3b62', '#f3d48a'];
+  function spawn(x, y, angle, spread, speed, n) {
+    for (let k = 0; k < n; k++) {
+      const a = angle + (Math.random() - 0.5) * spread, v = speed * (0.55 + Math.random() * 0.6);
+      const r = Math.random();
+      parts.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.3,
+        type: r < 0.38 ? 'orn' : r < 0.62 ? 'star' : r < 0.8 ? 'flake' : 'ribbon', size: 6 + Math.random() * 7,
+        color: COLORS[(Math.random() * COLORS.length) | 0], life: 0, wob: Math.random() * 6.28 });
+    }
+  }
+  function star(g, r) { g.beginPath(); for (let i = 0; i < 10; i++) { const rad = i % 2 ? r * 0.45 : r; const a = (i * Math.PI) / 5 - Math.PI / 2; g.lineTo(Math.cos(a) * rad, Math.sin(a) * rad); } g.closePath(); }
+  function drawPart(p) {
+    cx.save(); cx.translate(p.x, p.y); cx.rotate(p.rot);
+    cx.lineWidth = 1.5; cx.strokeStyle = '#14090f'; cx.fillStyle = p.color;
+    if (p.type === 'orn') {
+      cx.beginPath(); cx.arc(0, 0, p.size, 0, 6.28); cx.fill(); cx.stroke();
+      cx.fillStyle = '#e8b84a'; cx.fillRect(-p.size * 0.35, -p.size - p.size * 0.45, p.size * 0.7, p.size * 0.5); cx.strokeRect(-p.size * 0.35, -p.size - p.size * 0.45, p.size * 0.7, p.size * 0.5);
+      cx.globalAlpha = 0.5; cx.fillStyle = '#fff'; cx.beginPath(); cx.arc(-p.size * 0.35, -p.size * 0.3, p.size * 0.25, 0, 6.28); cx.fill();
+    } else if (p.type === 'star') { star(cx, p.size); cx.fill(); cx.stroke(); }
+    else if (p.type === 'flake') {
+      cx.strokeStyle = '#fbf7f8'; cx.lineWidth = 2;
+      for (let i = 0; i < 3; i++) { cx.rotate(Math.PI / 3); cx.beginPath(); cx.moveTo(-p.size, 0); cx.lineTo(p.size, 0); cx.stroke(); }
+    } else { cx.scale(1, Math.cos(p.wob)); cx.fillRect(-p.size * 0.7, -p.size * 0.25, p.size * 1.4, p.size * 0.5); }
+    cx.restore();
+  }
+  let lastT = 0;
+  function frame(t) {
+    const dt = Math.min((t - lastT) / 16.7 || 1, 3); lastT = t;
+    cx.clearRect(0, 0, innerWidth, innerHeight);
+    for (const p of parts) {
+      p.vy += 0.22 * dt; p.vx *= 0.985 ** dt; p.vy *= 0.985 ** dt;
+      p.x += (p.vx + Math.sin(p.wob) * 0.6) * dt; p.y += p.vy * dt; p.rot += p.vr * dt; p.wob += 0.12 * dt; p.life += dt;
+      drawPart(p);
+    }
+    parts = parts.filter((p) => p.y < innerHeight + 40 && p.life < 900);
+    if (parts.length) requestAnimationFrame(frame); else confettiOn = false;
+  }
+  function celebrate() {
+    sizeConfetti();
+    const n = reduceMotion ? 40 : 140;
+    spawn(0, innerHeight * 0.85, -Math.PI / 3.2, 0.9, 19, n);
+    spawn(innerWidth, innerHeight * 0.85, -Math.PI + Math.PI / 3.2, 0.9, 19, n);
+    if (!reduceMotion) {
+      let waves = 0;
+      const rain = setInterval(() => { for (let i = 0; i < 14; i++) spawn(Math.random() * innerWidth, -20, Math.PI / 2, 0.6, 3, 1); if (++waves > 28) clearInterval(rain); }, 180);
+      setTimeout(() => { spawn(innerWidth / 2, innerHeight * 0.55, -Math.PI / 2, 2.4, 16, 90); }, 700);
+    }
+    if (!confettiOn) { confettiOn = true; lastT = performance.now(); requestAnimationFrame(frame); }
+  }
+
+  // ---------- the show ----------
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function countdown() {
+    const el = $('countdown'); el.hidden = false;
+    for (const n of ['3', '2', '1']) { el.innerHTML = `<span>${n}</span>`; beep(n === '1' ? 880 : 660); await sleep(reduceMotion ? 400 : 1000); }
+    el.hidden = true; el.innerHTML = '';
+  }
+
+  async function runShow({ pool, pick, total, seed, winner, practice }) {
+    running = true; showed = true; updateControls();
+    $('verify').textContent = ''; $('verify').className = 'verify';
+    const cur = $('current'); cur.classList.remove('win');
+    $('curLabel').textContent = practice ? 'Practice run' : 'Drawing the winner';
+    $('curWho').textContent = 'Get ready…'; $('curSub').textContent = `${fmt.format(total)} tickets in the draw`;
+    const { segs } = showPool(pool, practice);
+    lastShow = { segs, total, practice, highlight: null, frac: 0 };
+    await countdown();
+
+    const target = pick / total;
+    const T = reduceMotion ? 1200 : 9000;
+    const amp = Math.max(target, 1 - target) + 0.05;
+    const waves = 6.5; // how many sweeps across the bar before it settles
+    const t0 = performance.now();
+    let lastIdx = -1;
+    await new Promise((resolve) => {
+      const step = (now) => {
+        const u = Math.min((now - t0) / T, 1);
+        const decay = (1 - u) ** 3; // sweeps shrink as it slows down
+        const frac = Math.min(Math.max(target + decay * amp * Math.cos(u * Math.PI * waves), 0), 0.999999);
+        lastShow.frac = frac;
+        setPointer(frac);
+        const ticket = frac * total;
+        const s = segAt(segs, ticket);
+        if (s.i !== lastIdx) { lastIdx = s.i; $('curWho').textContent = s.nickname; tick(); }
+        $('curSub').textContent = `Ticket #${fmt.format(Math.floor(ticket) + 1)} of ${fmt.format(total)}`;
+        if (u < 1) requestAnimationFrame(step); else resolve();
+      };
+      requestAnimationFrame(step);
+    });
+
+    // land exactly on the real pick
+    const win = segAt(segs, pick);
+    setPointer(target);
+    lastShow.highlight = win; lastShow.frac = target;
+    drawBar(segs, total, win);
+    const odds = (win.entries / total) * 100;
+    $('curLabel').innerHTML = practice ? 'Practice winner' : '<span class="winner-script">and the winner is</span>';
+    $('curWho').textContent = win.nickname;
+    $('curSub').textContent = `Ticket #${fmt.format(Math.floor(pick) + 1)} · ${fmt.format(win.entries)} ${win.entries === 1 ? 'entry' : 'entries'} (tickets ${fmt.format(win.from + 1)}–${fmt.format(win.to)}) · ${odds.toFixed(1)}% chance`;
+    cur.classList.add('win');
+    chime(); celebrate();
+
+    // independent check: recompute the pick from the seed in this browser
+    try {
+      const again = await pickFromSeed(seed, total);
+      const ok = Math.abs(again - pick) < 1e-6 && segAt(segs, again).userId === (winner?.userId ?? win.userId);
+      $('verify').className = 'verify ' + (ok ? 'ok' : 'bad');
+      $('verify').textContent = ok
+        ? `✓ Verified: seed ${seed} → ticket #${fmt.format(Math.floor(again) + 1)} of ${fmt.format(total)} → ${win.nickname}`
+        : '⚠ The result didn’t verify. Don’t announce it; check with the admin page.';
+    } catch { $('verify').textContent = `Seed: ${seed}`; }
+    running = false; updateControls();
+    if (!practice) loadState();
+  }
+
+  async function realDraw() {
+    if (running) return;
+    try {
+      if (state?.winner) {
+        const info = await call('drawinfo');
+        return runShow({ ...info, practice: false });
+      }
+      if (!confirm('Draw the REAL winner now? This is saved and can’t be redone (the reveal can be replayed).')) return;
+      say('Drawing…');
+      const r = await call('draw');
+      runShow({ pool: r.pool, pick: r.pick, total: r.total, seed: r.seed, winner: r.winner, practice: false });
+    } catch (e) {
+      running = false; say(e.message === 'Wrong password' ? 'Wrong password. Sign in again.' : e.message, true);
+      if (e.message === 'Wrong password') { pw = null; try { sessionStorage.removeItem('gw_pw'); } catch {} }
+      loadState();
+    }
+  }
+  async function practice() {
+    if (running) return;
+    const pool = practicePool();
+    if (!pool.length) return say('Nobody has entries yet, so there is nothing to practice with.', true);
+    const total = pool.reduce((a, p) => a + p.entries, 0);
+    const seed = 'practice-' + Math.random().toString(36).slice(2, 10);
+    const pick = await pickFromSeed(seed, total);
+    runShow({ pool, pick, total, seed, winner: null, practice: true });
+  }
+
+  // ---------- controls ----------
+  $('realBtn').addEventListener('click', realDraw);
+  $('practiceBtn').addEventListener('click', practice);
+  $('signin').addEventListener('click', async () => {
+    pw = $('pw').value;
+    try { await call('check'); try { sessionStorage.setItem('gw_pw', pw); } catch {} say('Signed in.'); }
+    catch (e) { pw = null; say(e.message === 'Wrong password' ? 'Wrong password. Try again.' : 'Can’t reach the server.', true); }
+    updateControls();
+  });
+  $('pw').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('signin').click(); });
+  function paintSound() { $('soundBtn').textContent = soundOn ? '🔊 Sound on' : '🔇 Sound off'; $('soundBtn').setAttribute('aria-pressed', String(soundOn)); }
+  $('soundBtn').addEventListener('click', () => { soundOn = !soundOn; try { localStorage.setItem('gw_sound', soundOn ? 'on' : 'off'); } catch {} paintSound(); if (soundOn) beep(); });
+  paintSound();
+  let hintTimer;
+  function hint(text) { const h = $('hintToast'); h.textContent = text; h.hidden = false; h.style.opacity = 1; clearTimeout(hintTimer); hintTimer = setTimeout(() => { h.style.opacity = 0; setTimeout(() => (h.hidden = true), 400); }, 1800); }
+  $('cleanBtn').addEventListener('click', () => { document.body.classList.add('clean'); scrollTo({ top: 0 }); hint('Clean view. Space to start, Esc for controls'); });
+  document.addEventListener('keydown', (e) => {
+    if (e.target instanceof Element && e.target.closest('input, textarea, select')) return; // typing, not a shortcut
+    if (e.key === 'Escape') document.body.classList.remove('clean');
+    if (e.key === ' ' && document.body.classList.contains('clean')) {
+      e.preventDefault();
+      if (!$('realBtn').disabled) realDraw(); else if (!$('practiceBtn').disabled) practice();
+    }
+  });
+  addEventListener('resize', () => { if (lastShow) { drawBar(lastShow.segs, lastShow.total, lastShow.highlight); setPointer(lastShow.frac); } sizeConfetti(); });
+
+  loadState();
+  setInterval(() => { if (!running) loadState(); }, 10000);
+</script>
+</body>
+</html>

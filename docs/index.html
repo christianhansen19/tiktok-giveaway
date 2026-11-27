@@ -3,18 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#dcc1cd">
 <title>Olivia The OG Giveaway Leaderboard</title>
-<meta name="description" content="Live giveaway leaderboard: see your coins, your ornaments and your odds to win the $100 gift card.">
+<meta name="description" content="Live giveaway leaderboard: find your name, see your ornaments and your odds to win the $100 gift card.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=Mrs+Saint+Delafield&family=Shrikhand&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 <style>
-  header { text-align: center; padding: 8px 0 24px; }
+  header { text-align: center; padding: 8px 0 20px; }
   header .script { font-size: clamp(3.2rem, 14vw, 5rem); }
   header .title { font-size: clamp(2.1rem, 10vw, 4.4rem); margin-top: -6px; }
   header .pill { margin-top: 18px; }
-  .updated { display: block; margin-top: 10px; font-size: .8rem; color: var(--ink); opacity: .75; }
+  .updated { display: block; margin-top: 10px; font-size: .8rem; color: var(--ink); opacity: .8; min-height: 1.2em; }
 
   .banner { border: 2px solid var(--ink); border-radius: 12px; padding: 10px 14px; margin: 0 0 20px; font-weight: 700; background: var(--gold); box-shadow: 2px 2px 0 var(--ink); }
   .banner[hidden] { display: none; }
@@ -23,30 +24,27 @@
   .winner { text-align: center; background: var(--gold); padding: 20px 16px; }
   .winner[hidden] { display: none; }
   .winner .script { font-size: 2.6rem; }
-  .winner .name { font: 400 clamp(1.6rem, 8vw, 2.6rem)/1.1 var(--display); text-transform: uppercase; word-break: break-word; }
+  .winner-name { font: 400 clamp(1.6rem, 8vw, 2.6rem)/1.15 var(--display); text-transform: uppercase; overflow-wrap: anywhere; }
 
   .prize { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
   .prize .amt { font: 400 clamp(2.4rem, 12vw, 3.4rem)/1 var(--display); color: var(--rose-deep); }
   .prize p { margin: 0; }
+  .prize a { color: var(--ink); font-weight: 800; }
 
   .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
   .stats .card { margin: 0; text-align: center; padding: 14px 8px; }
   .stats b { display: block; font: 400 clamp(1.25rem, 6.5vw, 2rem)/1.1 var(--display); font-variant-numeric: tabular-nums; }
   .stats span { font-size: .7rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 
-  .tiers { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 12px 0; text-align: center; }
-  .tier { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; background: var(--blush); border: 2px solid var(--ink); border-radius: 12px; padding: 12px 4px 10px; }
-  .tier svg { display: block; margin: 0 auto 6px; }
-  .tier b { display: block; font: 400 1rem/1.1 var(--display); text-transform: uppercase; }
-  .tier span { display: block; font-size: .72rem; font-weight: 700; color: var(--muted); line-height: 1.2; margin-top: 2px; }
-  .tier em { display: inline-block; margin-top: 6px; padding: 2px 8px; border-radius: 999px; background: var(--ink); color: #fff; font: 800 .72rem/1.4 var(--sans); font-style: normal; }
-  .how { margin: 0; font-size: .95rem; }
-  em.inline { font-style: normal; font-weight: 800; background: var(--ink); color: #fff; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
-
-  .find .row-in { display: flex; gap: 10px; }
-  .me { margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--blush); border: 2px dashed var(--ink); }
-  .me[hidden] { display: none; }
-  .me b { font-weight: 800; }
+  /* find yourself */
+  .results { display: grid; gap: 10px; margin-top: 12px; }
+  .results:empty { display: none; }
+  .result { padding: 12px 14px; border-radius: 12px; background: var(--blush); border: 2px dashed var(--ink); }
+  .result .rn { font-weight: 800; overflow-wrap: anywhere; }
+  .result .line { margin-top: 2px; font-size: .95rem; }
+  .result .tip { margin-top: 6px; font-size: .85rem; color: var(--muted); font-weight: 600; }
+  .result b { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .status-line { margin-top: 12px; font-weight: 600; color: var(--muted); }
 
   .board-head { display: flex; justify-content: space-between; align-items: baseline; margin: 28px 2px 12px; }
   .board-head h2 { margin: 0; font: 400 1.5rem/1 var(--display); text-transform: uppercase; color: var(--paper); -webkit-text-stroke: 1px var(--ink); paint-order: stroke fill; text-shadow: 2px 2px 0 var(--ink); }
@@ -63,31 +61,52 @@
   .r2 .rank { background: var(--silver); }
   .r3 .rank { background: var(--bronze); }
   .who { min-width: 0; }
-  .name { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .name { font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sent { font-size: .9rem; font-weight: 600; color: var(--muted); margin-top: 1px; }
   .sent b { color: var(--ink); font-weight: 800; font-variant-numeric: tabular-nums; }
   .meta { display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: .8rem; color: var(--muted); font-weight: 600; flex-wrap: wrap; }
   .orns { display: inline-flex; flex-wrap: wrap; gap: 4px 12px; align-items: flex-end; }
   .oc { display: inline-flex; align-items: flex-end; gap: 2px; font-weight: 800; color: var(--ink); }
-  .bar { height: 8px; border: 1.5px solid var(--ink); border-radius: 999px; background: #fff; margin-top: 8px; overflow: hidden; }
-  .bar i { display: block; height: 100%; background: var(--rose-deep); transition: width .6s ease; }
   .nums { text-align: right; }
   .nums b { display: block; font: 400 1.25rem/1.1 var(--display); font-variant-numeric: tabular-nums; }
   .nums small { display: block; font-size: .75rem; font-weight: 700; color: var(--muted); }
   .odds { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 999px; background: var(--ink); color: #fff; font-size: .75rem; font-weight: 800; font-variant-numeric: tabular-nums; }
 
-  .orn path.fill, .orn circle.fill { fill: #e6cbd6; }
+  .more { width: 100%; margin-top: 14px; }
+  .more[hidden] { display: none; }
+
+  .others { padding: 0; overflow: hidden; }
+  .others summary { cursor: pointer; padding: 16px; font-weight: 800; list-style: none; display: flex; justify-content: space-between; gap: 12px; min-height: 48px; align-items: center; }
+  .others summary::-webkit-details-marker { display: none; }
+  .others summary::after { content: '+'; font: 400 1.4rem/1 var(--display); }
+  .others[open] summary::after { content: '–'; }
+  .others .inner { padding: 0 16px 16px; }
+  .others ul { list-style: none; margin: 10px 0 0; padding: 0; }
+  .others li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--rose-l); }
+  .others li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+  .others li span:last-child { color: var(--muted); font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  .tiers { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 12px 0; text-align: center; }
+  .tier { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; background: var(--blush); border: 2px solid var(--ink); border-radius: 12px; padding: 12px 4px 10px; }
+  .tier svg { display: block; margin: 0 auto 6px; }
+  .tier b { display: block; font: 400 1rem/1.1 var(--display); text-transform: uppercase; }
+  .tier span { display: block; font-size: .72rem; font-weight: 700; color: var(--muted); line-height: 1.2; margin-top: 2px; }
+  .how { margin: 0 0 10px; font-size: .95rem; }
+  .how:last-child { margin-bottom: 0; }
+  em.inline { font-style: normal; font-weight: 800; background: var(--ink); color: #fff; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+
+  .orn circle.fill { fill: #e6cbd6; }
   .orn.lit circle.fill { fill: var(--rose-deep); }
   .orn .cap { fill: var(--gold); }
   .orn { stroke: var(--ink); stroke-width: 1.5; stroke-linejoin: round; }
-  .orn.off { opacity: .35; }
 
   .empty, .skeleton { text-align: center; padding: 28px 16px; }
   .empty .script { font-size: 2.4rem; }
   .skeleton .sk { height: 76px; border-radius: 16px; border: 2px solid var(--ink); background: linear-gradient(90deg, var(--paper), var(--blush), var(--paper)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; margin-bottom: 12px; }
   @keyframes shimmer { to { background-position: -200% 0; } }
+  [hidden] { display: none !important; }
 
-  footer { text-align: center; margin-top: 32px; font-size: .8rem; opacity: .75; }
+  footer { text-align: center; margin-top: 32px; font-size: .8rem; opacity: .8; }
 
   @media (min-width: 560px) {
     .row { grid-template-columns: 52px 1fr auto; padding: 14px 16px; }
@@ -104,17 +123,18 @@
     <span class="updated" id="updated"></span>
   </header>
 
+  <noscript><div class="banner">This page needs JavaScript to show the live leaderboard.</div></noscript>
   <div class="banner warn" id="banner" role="status" hidden></div>
 
   <section class="card winner" id="winner" hidden aria-live="polite">
     <p class="script">and the winner is</p>
-    <div class="name" id="winnerName"></div>
+    <div class="winner-name" id="winnerName"></div>
     <p class="muted" id="winnerMeta" style="margin:6px 0 0"></p>
   </section>
 
   <section class="card prize">
     <div class="amt">$100</div>
-    <p><b>Gift card giveaway.</b> One winner is drawn at the end. Every 1,000 coins in a single gift is an entry, and more entries means better odds.</p>
+    <p><b>Gift card giveaway.</b> One winner is drawn at the end. Every 1,000 coins in a single gift is an entry. <a href="#how">How it works</a></p>
   </section>
 
   <div class="stats">
@@ -123,85 +143,94 @@
     <div class="card"><b id="entries">–</b><span>Entries</span></div>
   </div>
 
-  <section class="card">
-    <h2>How you earn</h2>
-    <p class="muted" style="margin:0 0 8px">Only a <b>single gift of 1,000+ coins</b> counts. Each one earns <b>one ornament</b> with your name on it.</p>
-    <div class="tiers" aria-label="Ornament sizes">
-      <div class="tier"><svg class="orn lit" width="42" height="48" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Medium</b><span>1,000 to 9,999 coin gift</span></div>
-      <div class="tier"><svg class="orn lit" width="52" height="58" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Large</b><span>10,000+ coin gift</span></div>
-    </div>
-    <p class="how" style="margin-bottom:10px"><b>Entries:</b> <em class="inline">1 entry per 1,000 coins</em> of each qualifying gift, rounded down.</p>
-    <p class="how"><b>Examples:</b> a 1,500-coin gift = 1 medium ornament, 1 entry. A 15,000-coin gift = 1 large ornament, 15 entries. Two 1,500-coin gifts = 2 ornaments, 2 entries. Gifts under 1,000 coins don’t count, and they never add up (two 500-coin gifts = nothing). A streak of the same gift counts as one gift at its total.</p>
-  </section>
-
-  <section class="card find">
-    <h2>Find yourself</h2>
+  <section class="card find" aria-labelledby="findH">
+    <h2 id="findH">Find yourself</h2>
     <label for="q">Your TikTok name</label>
-    <div class="row-in"><input id="q" type="search" placeholder="Type your name" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"></div>
-    <div class="me" id="me" hidden aria-live="polite"></div>
+    <input id="q" type="search" placeholder="Type your name" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search" maxlength="40">
+    <div class="status-line" id="qStatus" role="status" aria-live="polite" hidden></div>
+    <div class="results" id="results"></div>
   </section>
 
   <div class="board-head"><h2>Top supporters</h2><span id="count"></span></div>
   <div class="skeleton" id="skeleton" aria-hidden="true"><div class="sk"></div><div class="sk"></div><div class="sk"></div></div>
   <div class="card empty" id="empty" hidden>
     <p class="script">be the first</p>
-    <p class="muted" style="margin:0">Nobody has an entry yet. Send a single gift of 1,000+ coins during the live to earn an ornament and get on the board.</p>
+    <p class="muted" id="emptyText" style="margin:0"></p>
   </div>
-  <ol class="board" id="board"></ol>
+  <ol class="board" id="board" aria-label="Leaderboard"></ol>
+  <button class="btn alt more" id="more" type="button" hidden></button>
 
-  <footer>Updates automatically. Coins are counted from the moment the giveaway starts.</footer>
+  <details class="card others" id="others" hidden>
+    <summary id="othersSummary"></summary>
+    <div class="inner">
+      <p class="muted" style="margin:0">They haven’t sent a single gift of 1,000+ coins yet, so no entries so far. Search your name above to check yours.</p>
+      <ul id="othersList"></ul>
+    </div>
+  </details>
+
+  <section class="card" id="how" style="margin-top:28px">
+    <h2>How it works</h2>
+    <p class="how">Only a <b>single gift of 1,000+ coins</b> counts. Each one earns <b>one ornament</b> with your name on it.</p>
+    <div class="tiers" aria-label="Ornament sizes">
+      <div class="tier"><svg class="orn lit" width="42" height="48" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Medium</b><span>1,000 to 9,999 coin gift</span></div>
+      <div class="tier"><svg class="orn lit" width="52" height="58" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg><b>Large</b><span>10,000+ coin gift</span></div>
+    </div>
+    <p class="how"><b>Entries:</b> <em class="inline">1 entry per 1,000 coins</em> of each qualifying gift, rounded down.</p>
+    <p class="how"><b>Examples:</b> a 1,500-coin gift = 1 medium ornament, 1 entry. A 15,000-coin gift = 1 large ornament, 15 entries. Two 1,500-coin gifts = 2 ornaments, 2 entries. Gifts under 1,000 coins don’t count, and they never add up (two 500-coin gifts = nothing). A streak of the same gift counts as one gift at its total.</p>
+    <p class="how"><b>Your odds</b> are your entries divided by everyone’s entries.</p>
+  </section>
+
+  <footer>Updates automatically.</footer>
 </main>
 
 <script>
   // Your server address (no trailing slash).
   const API = 'https://giveaway-api-production-d2ee64f6.up.railway.app';
   const DEMO = new URLSearchParams(location.search).has('demo');
+  const SHOW_FIRST = 10;
 
-  const TIERS = [{ k: 'medium', n: 'Medium', min: 1000 }, { k: 'large', n: 'Large', min: 10000 }];
+  const TIERS = [{ k: 'medium', n: 'Medium' }, { k: 'large', n: 'Large' }];
   const fmt = new Intl.NumberFormat();
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const NEXT_HINT = 'Send a single gift of 1,000+ coins to get entries';
 
-  let data = null, lastOk = 0, prevCoins = new Map(), query = '';
+  let data = null, lastOk = 0, expanded = false, query = '';
+  const prevEntries = new Map();
 
-  const orn = (size, lit) =>
-    `<svg class="orn ${lit ? 'lit' : 'off'}" width="${size * 0.85}" height="${size}" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg>`;
-
-  const NEXT_HINT = 'Send a single gift of 1,000+ coins to earn an ornament';
+  const orn = (size) =>
+    `<svg class="orn lit" width="${size * 0.85}" height="${size}" viewBox="0 0 24 28" aria-hidden="true"><rect class="cap" x="9" y="1" width="6" height="4" rx="1"/><circle class="fill" cx="12" cy="17" r="9"/></svg>`;
 
   function ornaments(r) {
     const parts = TIERS.filter((t) => r.rewards[t.k] > 0);
-    if (!parts.length) return { html: '', text: NEXT_HINT };
     return {
-      html: parts.map((t) => `<span class="oc">${orn(15 + TIERS.indexOf(t) * 6, true)}${r.rewards[t.k]} ${t.n.toLowerCase()}</span>`).join(''),
+      html: parts.map((t) => `<span class="oc">${orn(t.k === 'large' ? 21 : 15)}${r.rewards[t.k]} ${t.n.toLowerCase()}</span>`).join(''),
       text: parts.map((t) => `${r.rewards[t.k]} ${t.n.toLowerCase()}`).join(' · '),
     };
   }
+  const oddsText = (r) => (r.eligible ? `${(r.odds * 100).toFixed(1)}% odds` : 'not in draw');
 
   function rowHTML(r, i) {
     const o = ornaments(r);
-    const odds = r.eligible ? `${(r.odds * 100).toFixed(1)}% odds` : 'not in draw';
-    return `<li class="row ${i < 3 ? 'top r' + (i + 1) : ''}" data-id="${esc(r.userId)}" data-name="${esc((r.nickname ?? '').toLowerCase())}">
+    return `<li class="row ${i < 3 ? 'top r' + (i + 1) : ''}" data-id="${esc(r.userId)}">
       <span class="rank" aria-label="Rank ${r.rank}">${r.rank}</span>
       <div class="who">
         <div class="name">${esc(r.nickname ?? 'Anonymous')}</div>
         <div class="sent"><b>${fmt.format(r.coins)}</b> coins sent</div>
-        <div class="meta">${o.html ? `<span class="orns" aria-label="Ornaments earned">${o.html}</span>` : `<span>${NEXT_HINT}</span>`}</div>
+        <div class="meta"><span class="orns" aria-label="Ornaments earned">${o.html}</span></div>
       </div>
-      <div class="nums"><b>${fmt.format(r.entries)}</b><small>${r.entries === 1 ? 'entry' : 'entries'}</small><span class="odds">${odds}</span></div>
+      <div class="nums"><b>${fmt.format(r.entries)}</b><small>${r.entries === 1 ? 'entry' : 'entries'}</small><span class="odds">${oddsText(r)}</span></div>
     </li>`;
   }
 
   function render() {
     const d = data; if (!d) return;
-    const pill = $('pill');
     const done = !d.active && d.winner;
-    pill.className = 'pill ' + (d.active ? 'live' : done ? 'done' : '');
+    $('pill').className = 'pill ' + (d.active ? 'live' : done ? 'done' : '');
     $('pillText').textContent = d.active ? 'Live now' : done ? 'Winner picked' : 'Giveaway not running';
     $('total').textContent = fmt.format(d.totalCoins);
     $('viewers').textContent = fmt.format(d.viewers);
     $('entries').textContent = fmt.format(d.totalEntries ?? 0);
-    $('count').textContent = d.board.length ? `${d.board.length} shown` : '';
 
     $('winner').hidden = !d.winner;
     if (d.winner) {
@@ -210,46 +239,98 @@
     }
 
     $('skeleton').hidden = true;
-    $('empty').hidden = d.board.length > 0;
+    const board = d.board;
+    $('empty').hidden = board.length > 0;
+    $('emptyText').textContent = d.viewers || d.active
+      ? 'Nobody has an entry yet. Send a single gift of 1,000+ coins during the live to get on the board.'
+      : 'The giveaway hasn’t started yet. Check back when the live begins.';
+    $('count').textContent = board.length ? `${fmt.format(board.length)} in the draw` : '';
 
-    const list = $('board');
-    list.innerHTML = d.board.map(rowHTML).join('');
-    list.querySelectorAll('.row').forEach((li) => {
-      const id = li.dataset.id, row = d.board.find((r) => String(r.userId) === id);
-      const before = prevCoins.get(id);
+    const shown = expanded ? board : board.slice(0, SHOW_FIRST);
+    $('board').innerHTML = shown.map(rowHTML).join('');
+    $('board').querySelectorAll('.row').forEach((li) => {
+      const row = board.find((r) => String(r.userId) === li.dataset.id);
+      const before = prevEntries.get(li.dataset.id);
       if (before !== undefined && row.entries > before) li.classList.add('bump');
-      prevCoins.set(id, row.entries);
     });
-    applySearch(false);
+    board.forEach((r) => prevEntries.set(String(r.userId), r.entries));
+
+    const hiddenCount = board.length - shown.length;
+    $('more').hidden = board.length <= SHOW_FIRST;
+    $('more').textContent = expanded ? 'Show fewer' : `Show all ${fmt.format(board.length)}`;
+    $('more').setAttribute('aria-expanded', String(expanded));
+    void hiddenCount;
+
+    const o = d.others;
+    $('others').hidden = !(o && o.count > 0);
+    if (o && o.count > 0) {
+      $('othersSummary').textContent = `Also cheering: ${fmt.format(o.count)} ${o.count === 1 ? 'supporter' : 'supporters'}`;
+      $('othersList').innerHTML = o.top.map((p) => `<li><span>${esc(p.nickname ?? 'Anonymous')}</span><span>${fmt.format(p.coins)} coins</span></li>`).join('')
+        + (o.count > o.top.length ? `<li><span class="muted">and ${fmt.format(o.count - o.top.length)} more</span><span></span></li>` : '');
+    }
   }
 
-  function applySearch(scroll) {
-    const q = query.trim().toLowerCase();
-    const me = $('me');
-    document.querySelectorAll('.row.hit').forEach((e) => e.classList.remove('hit'));
-    if (!q || !data) { me.hidden = true; return; }
-    const hit = data.board.find((r) => (r.nickname ?? '').toLowerCase().includes(q));
-    me.hidden = false;
-    if (!hit) { me.innerHTML = 'No match yet. Send a gift during the live and you’ll appear here.'; return; }
-    const o = ornaments(hit);
-    me.innerHTML = `<b>${esc(hit.nickname)}</b> · rank <b>#${hit.rank}</b> · <b>${fmt.format(hit.entries)}</b> ${hit.entries === 1 ? 'entry' : 'entries'} · <b>${hit.eligible ? (hit.odds * 100).toFixed(1) + '%' : '–'}</b> chance to win<br><span class="muted">${hit.entries ? o.text : NEXT_HINT} · ${fmt.format(hit.coins)} coins sent</span>`;
-    const li = document.querySelector(`.row[data-id="${CSS.escape(String(hit.userId))}"]`);
-    if (li) { li.classList.add('hit'); if (scroll) li.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); }
+  // ---------- find yourself ----------
+  let searchTimer, searchCtl;
+  function resultHTML(r) {
+    const o = ornaments(r);
+    const ranked = r.rank != null;
+    const line = ranked
+      ? `Rank <b>#${r.rank}</b> · <b>${fmt.format(r.entries)}</b> ${r.entries === 1 ? 'entry' : 'entries'} · <b>${r.eligible ? (r.odds * 100).toFixed(1) + '%' : '–'}</b> chance to win`
+      : 'Not in the draw yet · <b>0</b> entries';
+    const tip = ranked ? (o.text ? `Ornaments: ${o.text}` : '') : NEXT_HINT;
+    return `<div class="result"><div class="rn">${esc(r.nickname ?? 'Anonymous')}</div><div class="line">${line}</div><div class="line"><b>${fmt.format(r.coins)}</b> coins sent</div>${tip ? `<div class="tip">${esc(tip)}</div>` : ''}</div>`;
   }
+  function showResults(matches, q) {
+    $('qStatus').hidden = matches.length > 0 ? true : false;
+    if (!matches.length) { $('qStatus').textContent = `No one found for “${q}” yet. Names appear after a gift is sent during the live.`; $('qStatus').hidden = false; }
+    $('results').innerHTML = matches.map(resultHTML).join('');
+  }
+  async function search() {
+    const q = query.trim();
+    if (searchCtl) searchCtl.abort();
+    if (q.length < 2) { $('results').innerHTML = ''; $('qStatus').hidden = q.length === 0; if (q.length === 1) { $('qStatus').hidden = false; $('qStatus').textContent = 'Keep typing…'; } return; }
+    $('qStatus').hidden = false; $('qStatus').textContent = 'Searching…'; $('results').innerHTML = '';
+    if (DEMO) {
+      const all = demoData().all;
+      const ql = q.toLowerCase();
+      return showResults(all.filter((r) => r.nickname.toLowerCase().includes(ql)).slice(0, 5), q);
+    }
+    searchCtl = new AbortController();
+    const t = setTimeout(() => searchCtl.abort(), 8000);
+    try {
+      const r = await fetch(`${API}/lookup?q=${encodeURIComponent(q)}`, { signal: searchCtl.signal, cache: 'no-store' });
+      if (!r.ok) throw new Error(r.status);
+      showResults((await r.json()).matches, q);
+    } catch (e) {
+      if (e.name === 'AbortError' && q !== query.trim()) return; // superseded by newer typing
+      $('qStatus').hidden = false; $('qStatus').textContent = 'Couldn’t search right now. Try again in a moment.';
+    } finally { clearTimeout(t); }
+  }
+  $('q').addEventListener('input', (e) => { query = e.target.value; clearTimeout(searchTimer); searchTimer = setTimeout(search, 300); });
+  $('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') { clearTimeout(searchTimer); search(); } });
 
+  // ---------- show more ----------
+  $('more').addEventListener('click', () => { expanded = !expanded; render(); if (!expanded) $('board').scrollIntoView({ block: 'start' }); });
+
+  // ---------- data ----------
   function demoData() {
     // [name, gifts sent...]. Only single gifts of 1,000+ count: medium 1,000-9,999, large 10,000+,
     // one ornament per gift, entries = floor(gift / 1,000).
     const sends = [['stargazer_kay', 15000, 2000], ['Zhane 🧚🏻‍♀️', 9800, 1500, 1500], ['el_mamon33', 6000, 1200], ['goatedfrfr', 1500, 1500, 1500],
-      ['luna.loves.live', 5200], ['JJ', 1000, 1000], ['maddie_m', 1800], ['tiktok_tom', 1000], ['sunny', 500, 500, 500], ['cj_plays', 300, 300], ['ava', 120], ['the_real_deal', 30]];
-    const rows = sends.map(([nickname, ...gifts]) => {
+      ['luna.loves.live', 5200], ['JJ', 1000, 1000], ['maddie_m', 1800], ['tiktok_tom', 1000], ['sunny', 500, 500, 500], ['cj_plays', 300, 300], ['ava', 120], ['the_real_deal', 30],
+      ...Array.from({ length: 18 }, (_, i) => [`supporter_${i + 1}`, 1000 + (i % 4) * 700])];
+    const all = sends.map(([nickname, ...gifts]) => {
       const rewards = { medium: gifts.filter((c) => c >= 1000 && c < 10000).length, large: gifts.filter((c) => c >= 10000).length };
       const entries = gifts.reduce((a, c) => a + (c >= 1000 ? Math.floor(c / 1000) : 0), 0);
       return { userId: nickname, nickname, coins: gifts.reduce((a, b) => a + b, 0), rewards, entries, eligible: true };
     }).sort((a, b) => b.entries - a.entries || b.coins - a.coins);
-    const totalEntries = rows.reduce((a, r) => a + r.entries, 0);
-    rows.forEach((r, i) => { r.rank = i + 1; r.odds = totalEntries ? r.entries / totalEntries : 0; });
-    return { active: true, updatedAt: Date.now(), totalCoins: rows.reduce((a, r) => a + r.coins, 0), totalEntries, viewers: rows.length, winner: null, board: rows };
+    const totalEntries = all.reduce((a, r) => a + r.entries, 0);
+    let rk = 1;
+    all.forEach((r) => { r.rank = r.entries > 0 ? rk++ : null; r.odds = totalEntries ? r.entries / totalEntries : 0; });
+    const board = all.filter((r) => r.entries > 0), others = all.filter((r) => r.entries === 0);
+    return { all, active: true, updatedAt: Date.now(), totalCoins: all.reduce((a, r) => a + r.coins, 0), totalEntries, viewers: all.length, winner: null,
+      board, others: { count: others.length, top: others.slice(0, 15).map((r) => ({ nickname: r.nickname, coins: r.coins })) } };
   }
 
   async function refresh() {
@@ -271,8 +352,6 @@
     } finally { clearTimeout(t); }
   }
 
-  $('q').addEventListener('input', (e) => { query = e.target.value; applySearch(false); });
-  $('q').addEventListener('keydown', (e) => { if (e.key === 'Enter') applySearch(true); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
   setInterval(() => { if (lastOk) { const s = Math.round((Date.now() - lastOk) / 1000); $('updated').textContent = s < 3 ? 'Updated just now' : `Updated ${s}s ago`; } }, 1000);
   refresh();
